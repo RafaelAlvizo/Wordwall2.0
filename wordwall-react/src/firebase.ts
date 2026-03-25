@@ -22,14 +22,32 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth';
 
-const app = initializeApp({
-  apiKey: 'AIzaSyBbpjuMaYQ0PE85bkRjA1UH5aGanbV2J5Y',
-  authDomain: 'monexus-main-db.firebaseapp.com',
-  projectId: 'monexus-main-db',
-  storageBucket: 'monexus-main-db.firebasestorage.app',
-  messagingSenderId: '723458450728',
-  appId: '1:723458450728:web:07393be6569c6676919c1d',
-});
+function firebaseConfigFromEnv() {
+  const config = {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  };
+  const missing = Object.entries(config)
+    .filter(([, v]) => !v || String(v).trim() === '')
+    .map(([k]) => k);
+  if (missing.length) {
+    console.error(
+      '[WordWall] Missing Firebase env vars:',
+      missing.join(', '),
+      '— add them to wordwall-react/.env.local (see .env.example).',
+    );
+    throw new Error(
+      'Firebase is not configured. Copy .env.example to .env.local and set VITE_FIREBASE_* values.',
+    );
+  }
+  return config;
+}
+
+const app = initializeApp(firebaseConfigFromEnv());
 const db = getFirestore(app);
 const auth = getAuth(app);
 
