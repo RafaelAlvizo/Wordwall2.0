@@ -3,8 +3,9 @@
 import React from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { signInWithCustomToken } from 'firebase/auth';
 import './app.css';
-import './firebase';
+import { auth } from './firebase';
 
 var QF       = "Questrial, sans-serif";
 var TMAX     = 5;
@@ -2555,17 +2556,47 @@ function Root(){
   var _u=useState(null);var user=_u[0];var setUser=_u[1];
   var _pr=useState(null);var profile=_pr[0];var setProfile=_pr[1];
   var _al=useState("ES");var aLang=_al[0];var setALang=_al[1];
+  var _rd=useState(false);var isReady=_rd[0];var setIsReady=_rd[1];
+  var isEmbedded=typeof window!=="undefined"&&window!==window.parent;
+  var parentOrigin=import.meta.env.VITE_PARENT_ORIGIN||"";
   function togLang(){setALang(function(l){return l==="ES"?"EN":"ES";});}
   useEffect(function(){
-    if(window.fbAuthReady){
-      window.fbAuthReady(function(u){
-        if(u){setUser(u);var gp=window.fbGetProfile?window.fbGetProfile(u.uid):Promise.resolve(null);gp.then(function(pr){setProfile(pr);setScreen("game");});}
-      });
+    function handleMessage(event){
+      var originOk=parentOrigin?event.origin===parentOrigin:event.origin===window.location.origin;
+      if(!originOk)return;
+      if(event.data&&event.data.type==="AUTH"&&event.data.token){
+        signInWithCustomToken(auth,event.data.token).then(function(){
+          console.log("Auto login successful");
+        }).catch(function(err){
+          console.error("Auto login failed",err);
+          if(isEmbedded)setIsReady(true);
+        });
+      }
     }
-  },[]);
+    window.addEventListener("message",handleMessage);
+    return function(){window.removeEventListener("message",handleMessage);};
+  },[isEmbedded,parentOrigin]);
+  useEffect(function(){
+    if(window.fbAuthReady){
+      var unsub=window.fbAuthReady(function(u){
+        if(u){
+          setUser(u);
+          var gp=window.fbGetProfile?window.fbGetProfile(u.uid):Promise.resolve(null);
+          gp.then(function(pr){setProfile(pr);setScreen("game");setIsReady(true);});
+          return;
+        }
+        if(!isEmbedded)setIsReady(true);
+      });
+      return function(){if(unsub)unsub();};
+    }
+    setIsReady(true);
+  },[isEmbedded]);
+  if(!isReady)return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:QF,fontSize:"14px",letterSpacing:".08em",color:"#666"}}>Loading...</div>);
   if(screen==="splash")return(<Splash onDone={function(){setScreen("login");}}/>);
+  if(isEmbedded&&screen==="login")return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:QF,fontSize:"14px",letterSpacing:".08em",color:"#666"}}>Waiting for secure sign-in...</div>);
   if(screen==="login")return(<Login lang={aLang} onLang={togLang} onLogin={function(u){setUser(u);var gp=window.fbGetProfile?window.fbGetProfile(u.uid):Promise.resolve(null);gp.then(function(pr){setProfile(pr);setScreen("game");});}}/>);
-  if(screen==="register")return(<Register lang={aLang} onLang={togLang} onDone={function(u,pd){setUser(u);setProfile(pd);setScreen("game");}} onLogin={function(){setScreen("login");}}/>);
+  if(isEmbedded&&screen==="register")return(<div style={{minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:QF,fontSize:"14px",letterSpacing:".08em",color:"#666"}}>Waiting for secure sign-in...</div>);
+  if(screen==="register")return(<Register lang={aLang} onLang={togLang} onDone={function(u,pd){setUser(u);setProfile(pd);setScreen("game");setIsReady(true);}} onLogin={function(){setScreen("login");}}/>);
   return(<Game user={user} profile={profile} onSignOut={function(){if(window.fbSignOut)window.fbSignOut();setUser(null);setProfile(null);setScreen("login");}}/>);
 }
 

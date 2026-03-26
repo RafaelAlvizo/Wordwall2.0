@@ -50,6 +50,7 @@ function firebaseConfigFromEnv() {
 const app = initializeApp(firebaseConfigFromEnv());
 const db = getFirestore(app);
 const auth = getAuth(app);
+export { auth };
 
 /** Single doc per user: externalApps/LANGUAGE/WordWall/UserDataWall/WordWallFile/{uid} */
 function userWallDataRef(uid) {
