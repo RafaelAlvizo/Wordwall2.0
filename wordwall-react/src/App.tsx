@@ -389,7 +389,7 @@ function ProgressDots(p){
 /* ═══════════════════════════════════════════════════════════
    SPLASH
    ═══════════════════════════════════════════════════════════ */
-function Splash(p){var _s=useState(false);var out=_s[0];var setOut=_s[1];useEffect(function(){var a=setTimeout(function(){setOut(true);},2000);var b=setTimeout(function(){p.onDone();},2700);return function(){clearTimeout(a);clearTimeout(b);};});return(<div className={"splash"+(out?" out":"")}><div className="slogo"><Logo size={200}/></div></div>);}
+function Splash(p){useEffect(function(){var t=setTimeout(function(){p.onDone();},1700);return function(){clearTimeout(t);};},[]);return(<div className="splash"><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"10px"}}><div style={{fontFamily:QF,fontWeight:"900",fontSize:"64px",letterSpacing:".08em",lineHeight:"1",textTransform:"uppercase"}}>Wordwall</div><div style={{fontFamily:QF,fontWeight:"700",fontSize:"20px",letterSpacing:".18em",color:"#666",textTransform:"uppercase"}}>by Monexus</div></div></div>);}
 
 /* ═══════════════════════════════════════════════════════════
    LOGIN  (unchanged)
