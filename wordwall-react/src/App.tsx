@@ -9,6 +9,8 @@ import './firebase';
 var QF       = "Questrial, sans-serif";
 var TMAX     = 5;
 var TMAX_L23 = 8;
+var MC_OPTION_COUNT = 4;
+var L3_RECORD_START_LIMIT = 8;
 var VERIFIED_NEEDED = 3;   /* Correct answers needed to verify a word */
 var L3_SPEECH_MAX_TRIES = 3; /* Level 3: 1 try + up to 2 retries before next word */
 var WALL_BRICK_PX = 56;      /* Default in-exercise brick height (bigger wall) */
@@ -153,8 +155,45 @@ function buildKnownWordsL1Queue(assessmentRows){
   var optPool=[];var ts={};
   slice0.forEach(function(r){if(!ts[r.target]){ts[r.target]=1;optPool.push(r.target);}});
   return slice0.map(function(r,i){
-    return{promptWord:r.prompt,targetWord:r.target,targetId:"demo-"+i,options:shuffle(optPool.slice())};
+    return{
+      promptWord:r.prompt,
+      targetWord:r.target,
+      targetId:"demo-"+i,
+      options:buildMcOptions(r.target,optPool,MC_OPTION_COUNT)
+    };
   });
+}
+
+function buildMcOptions(correctWord, pool, count){
+  var c=typeof count==="number"?count:MC_OPTION_COUNT;
+  var seen={};var uniq=[];
+  [correctWord].concat(pool||[]).forEach(function(w){
+    var k=String(w||"").trim();
+    if(!k||seen[k])return;
+    seen[k]=1;
+    uniq.push(k);
+  });
+  var others=uniq.filter(function(w){return w!==correctWord;});
+  var take=Math.max(0,c-1);
+  var picked=shuffle(others.slice()).slice(0,take);
+  var out=[correctWord].concat(picked);
+  return shuffle(out.slice(0,Math.max(1,Math.min(c,uniq.length))));
+}
+
+function learningLangCodeFromProfile(profile){
+  var raw=String(
+    profile&&(
+      profile.learningLangCode||
+      profile.learningLanguageCode||
+      profile.learningLang||
+      profile.targetLang||
+      ""
+    )||""
+  ).toLowerCase();
+  if(!raw)return "";
+  if(raw==="en"||raw.indexOf("english")!==-1||raw.indexOf("ingl")!==-1)return "EN";
+  if(raw==="es"||raw.indexOf("spanish")!==-1||raw.indexOf("españ")!==-1||raw.indexOf("espan")!==-1||raw.indexOf("castell")!==-1)return "ES";
+  return "";
 }
 
 function getDemoBankBrickData(sessQueue,demoProg,sessionCorrectIds){
@@ -213,18 +252,21 @@ function buildSessionQueue(cat, wordProgress, gameLang){
   function getPrompt(pair) { return gameLang==="ES" ? pair.esWord : pair.enWord; }
   function getId(pair)     { return gameLang==="ES" ? pair.enId  : pair.esId;   }
 
-  /* All 10 target words — shown as buttons on every question */
-  var allTargetWords = cat.pairs.map(function(pair){ return getTarget(pair); });
-
-  /* Always include ALL 10 words — siempre 10 preguntas por sesión */
-  /* catComplete screen handles the "all verified" case separately  */
-  return shuffle(cat.pairs.slice()).map(function(pair){
+  var pendingPairs = cat.pairs.filter(function(pair){
+    var id=String(getId(pair));
+    var done=((wordProgress||{})[id]||{}).timesDone||0;
+    return done<VERIFIED_NEEDED;
+  });
+  if(!pendingPairs.length)return [];
+  /* Options are built from pending words only (4 choices each). */
+  var allTargetWords = pendingPairs.map(function(pair){ return getTarget(pair); });
+  return shuffle(pendingPairs.slice()).map(function(pair){
     return {
       promptWord : getPrompt(pair),
       targetWord : getTarget(pair),
       targetId   : getId(pair),
       timesDone  : (wordProgress[String(getId(pair))]||{}).timesDone || 0,
-      options    : shuffle(allTargetWords.slice())   /* all 10 words as buttons */
+      options    : buildMcOptions(getTarget(pair),allTargetWords,MC_OPTION_COUNT)
     };
   });
 }
@@ -591,8 +633,11 @@ function Game(p){
   var profile = p.profile;
 
   /* ── Determine game language ── */
+  var selectedLearningLang=learningLangCodeFromProfile(profile);
   var native = (profile&&profile.nativeLang?profile.nativeLang:"").toLowerCase();
-  var lang   = native.indexOf("english")!==-1 ? "EN" : "ES";
+  var fallbackLang = native.indexOf("english")!==-1 ? "EN" : "ES";
+  var learnLang = selectedLearningLang || (fallbackLang==="ES"?"EN":"ES");
+  var lang   = learnLang==="EN" ? "ES" : "EN";
   var g      = G[lang];
   var speechLang = lang==="ES" ? "en-US" : "es-MX";
 
@@ -641,6 +686,7 @@ function Game(p){
   var _l3tm= useState(TMAX_L23); var l3timer= _l3tm[0];var setL3Timer= _l3tm[1];
   var _l3wc= useState(false);   var l3WaitContinue=_l3wc[0];var setL3WaitContinue=_l3wc[1];
   var l3tref=useRef(null);
+  var l3StartWaitRef=useRef(null);
   var l3RecRef=useRef(null);
   var l3FailCountRef=useRef(0);
   var l3PendingNewResRef=useRef(null);
@@ -706,7 +752,7 @@ function Game(p){
     var targets={};var optPool=[];
     batch.forEach(function(r){if(!targets[r.target]){targets[r.target]=1;optPool.push(r.target);}});
     var q=batch.map(function(r){
-      return {promptWord:r.prompt,targetWord:r.target,targetId:r.id,options:shuffle(optPool.slice())};
+      return {promptWord:r.prompt,targetWord:r.target,targetId:r.id,options:buildMcOptions(r.target,optPool,MC_OPTION_COUNT)};
     });
     return {remaining:remaining,total:(allRows||[]).length,batch:batch,queue:q};
   }
@@ -1053,16 +1099,30 @@ function Game(p){
       setBest(function(b){return Math.max(b,tl||0);});
       setCorrList(function(l){ return l.concat([cur.targetId]); });
     } else sWrong();
+    var queueAfter=sessW;
+    if(ok){
+      queueAfter=sessW.filter(function(item,idx){
+        return idx<=qi || item.targetId!==cur.targetId;
+      });
+      setSessW(queueAfter);
+    }else{
+      var hasLater=sessW.slice(qi+1).some(function(item){return item.targetId===cur.targetId;});
+      if(!hasLater){
+        queueAfter=sessW.concat([cur]);
+        setSessW(queueAfter);
+      }
+    }
     setSel(ans);
     setFb(ans===null?"timeout":ok?"ok":"wrong");
     setTimeout(function(){
       var nx=qi+1;
-      if(nx>=sessW.length){
+      var qLen=queueAfter.length;
+      if(nx>=qLen){
         var fc=corrList.length+(ok?1:0);
-        if(fc===sessW.length)sWin();
+        if(fc===qLen)sWin();
         setScreen("results");
       } else {
-        if(qi===Math.floor(sessW.length/2)-1) sTada();
+        if(qi===Math.floor(qLen/2)-1) sTada();
         setQi(nx);setTimer(TMAX);tval.current=TMAX;setFb(null);setSel(null);
       }
     },1600);
@@ -1212,8 +1272,28 @@ function Game(p){
     setScreen(which);
   }
   function clrL3T(){if(l3tref.current){clearInterval(l3tref.current);l3tref.current=null;}}
+  function clrL3StartWaitT(){if(l3StartWaitRef.current){clearInterval(l3StartWaitRef.current);l3StartWaitRef.current=null;}}
+  function speakWordThen(word, done){
+    var cb=typeof done==="function"?done:function(){};
+    if(!word||!window.speechSynthesis||!window.SpeechSynthesisUtterance){cb();return;}
+    try{
+      window.speechSynthesis.cancel();
+      var finished=false;
+      function doneOnce(){if(finished)return;finished=true;cb();}
+      var utt=new window.SpeechSynthesisUtterance(String(word));
+      utt.lang=speechLang;
+      utt.rate=0.92;
+      utt.onend=doneOnce;
+      utt.onerror=doneOnce;
+      window.speechSynthesis.speak(utt);
+      setTimeout(doneOnce,1800);
+    }catch(e){
+      cb();
+    }
+  }
   function stopL3Recognizer(){
     clrL3T();
+    clrL3StartWaitT();
     var rec=l3RecRef.current;
     if(rec){
       try{if(rec.abort)rec.abort();}catch(e1){}
@@ -1221,6 +1301,20 @@ function Game(p){
       l3RecRef.current=null;
     }
     setL3Listen(false);
+  }
+  function onL3RecordStartExpired(){
+    if(screenR.current!=="l3play"&&screenR.current!=="asL3play")return;
+    if(l3listen||l3WaitContRef.current||l3fb!==null)return;
+    if(!sessW.length)return;
+    var cur=sessW[l3qi];
+    if(!cur)return;
+    processL3("__SKIP__",cur);
+    setTimeout(function(){
+      speakWordThen(cur.targetWord,function(){
+        if(screenR.current!=="l3play"&&screenR.current!=="asL3play")return;
+        if(l3WaitContRef.current)applyL3WordComplete();
+      });
+    },0);
   }
   function startSpeech(){
     var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -1270,6 +1364,24 @@ function Game(p){
     if(l3fb&&l3fb.retry)setL3Fb(null);
     startSpeech();
   }
+  useEffect(function(){
+    if((screen!=="l3play"&&screen!=="asL3play")||l3listen||l3WaitContinue||l3fb!==null){
+      clrL3StartWaitT();
+      return;
+    }
+    clrL3StartWaitT();
+    var tv=L3_RECORD_START_LIMIT;
+    setL3Timer(tv);
+    l3StartWaitRef.current=setInterval(function(){
+      tv-=1;
+      setL3Timer(tv);
+      if(tv<=0){
+        clrL3StartWaitT();
+        onL3RecordStartExpired();
+      }
+    },1000);
+    return clrL3StartWaitT;
+  },[screen,l3qi,l3listen,l3WaitContinue,l3fb,sessW.length]);
   function queueL3WordComplete(newRes){
     l3PendingNewResRef.current=newRes;
     l3WaitContRef.current=true;
@@ -1526,7 +1638,7 @@ function Game(p){
 
   /* ════════════ SHARED SUB-COMPONENTS ════════════ */
   function getCat(){ return WORD_PAIRS_DATA[catIdx]; }
-  function getCatName(){ var c=getCat(); return lang==="ES"?c.nameES:c.nameEN; }
+  function getCatName(){ var c=getCat(); return learnLang==="ES"?c.nameES:c.nameEN; }
 
   function GameHeader(hp){
     var subLine="sub" in hp?hp.sub:getCatName();
@@ -1676,9 +1788,9 @@ function Game(p){
                   var isOk=fb==="ok"&&isSel;
                   var isWrong=fb==="wrong"&&isSel;
                   var st={
-                    padding:"14px 12px",borderRadius:"14px",border:"2px solid "+(isOk?"#16a34a":isWrong?"#dc2626":"#e5e7eb"),
+                    minHeight:"64px",padding:"16px 12px",borderRadius:"14px",border:"2px solid "+(isOk?"#16a34a":isWrong?"#dc2626":"#e5e7eb"),
                     background:isOk?"#dcfce7":isWrong?"#fee2e2":"#fff",cursor:fb? "default":"pointer",
-                    fontFamily:QF,fontSize:"14px",fontWeight:"800",letterSpacing:".04em",textTransform:"uppercase"
+                    fontFamily:QF,fontSize:"16px",fontWeight:"800",letterSpacing:".04em",textTransform:"uppercase"
                   };
                   return(<button key={i} onClick={function(){if(fb===null)pickL1(o);}} style={st}>{o}</button>);
                 })}
@@ -1827,7 +1939,7 @@ function Game(p){
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
             <Wall brickData={bDataA3} curQ={l3qi} playing={!l3listen&&!l3WaitContinue}/>
             <div style={{marginTop:"10px"}}>
-              <TimerMini val={l3timer} max={TMAX_L23} color={l3timer<=2?"#dc2626":"#0f766e"}/>
+              <TimerMini val={l3timer} max={l3listen?TMAX_L23:L3_RECORD_START_LIMIT} color={l3timer<=2?"#dc2626":"#0f766e"}/>
               <div style={{fontFamily:QF,fontSize:"10px",color:"#94a3b8"}}>{lang==="EN"?"Say the word clearly.":"Di la palabra claramente."}</div>
             </div>
           </div>
@@ -2039,7 +2151,7 @@ function Game(p){
           {g.info.map(function(it){return(<div key={it[1]} style={{display:"flex",alignItems:"flex-start",gap:"14px"}}><span style={{fontSize:"22px",lineHeight:"1",flexShrink:0}}>{it[0]}</span><span style={{fontFamily:QF,fontSize:"13px",color:"#333",lineHeight:"1.5"}}>{it[1]}</span></div>);})}
           <div style={{marginTop:"6px",padding:"10px 14px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
             <div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"6px"}}>CATEGORÍAS</div>
-            {WORD_PAIRS_DATA.map(function(c,ci){var colors=["#e8633a","#7c3aed","#0891b2"];return(<div key={ci} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:colors[ci],flexShrink:0}}></div><span style={{fontFamily:QF,fontSize:"11px",color:"#555"}}>{lang==="ES"?c.nameES:c.nameEN}</span></div>);})}
+            {WORD_PAIRS_DATA.map(function(c,ci){var colors=["#e8633a","#7c3aed","#0891b2"];return(<div key={ci} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:colors[ci],flexShrink:0}}></div><span style={{fontFamily:QF,fontSize:"11px",color:"#555"}}>{learnLang==="ES"?c.nameES:c.nameEN}</span></div>);})}
           </div>
         </div>
       </div>
@@ -2211,7 +2323,7 @@ function Game(p){
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
             <Wall brickData={catWall3} curQ={curBrick3} playing={!l3listen&&!l3WaitContinue}/>
             <div style={{marginTop:"10px"}}>
-              <TimerMini val={l3timer} max={TMAX_L23} color="#7c3aed"/>
+              <TimerMini val={l3timer} max={l3listen?TMAX_L23:L3_RECORD_START_LIMIT} color="#7c3aed"/>
               <div style={{fontFamily:QF,fontSize:"10px",color:"#94a3b8"}}>{lang==="ES"?"Pronuncia la palabra claramente":"Say the word clearly"}</div>
             </div>
           </div>
@@ -2447,7 +2559,7 @@ function Game(p){
                     var isCorrect=opt===curQD.targetWord;var isSel=sel===opt;
                     var bg="#fff",cl="#000",bd="2px solid #0d9488";
                     if(fb!==null){if(isCorrect){bg="#0d9488";cl="#fff";}else if(isSel){bg="#fff3f0";cl="#d44e25";bd="2px solid #f5c4b5";}else{bg="#fafafa";cl="#ccc";bd="2px solid #e5e7eb";}}
-                    return(<button key={opt+"-"+curQD.promptWord} type="button" className="abtn" onClick={function(){pickL1(opt);}} disabled={fb!==null} style={{backgroundColor:bg,color:cl,border:bd,fontWeight:"700",fontSize:"14px",padding:"9px 4px"}}>{opt}</button>);
+                    return(<button key={opt+"-"+curQD.promptWord} type="button" className="abtn" onClick={function(){pickL1(opt);}} disabled={fb!==null} style={{backgroundColor:bg,color:cl,border:bd,fontWeight:"700",fontSize:"16px",minHeight:"60px",padding:"11px 6px"}}>{opt}</button>);
                   })}
                 </div>
               </div>
@@ -2534,7 +2646,7 @@ function Game(p){
                   var isCorrect=opt===curQ.targetWord;var isSel=sel===opt;
                   var bg="#fff",cl="#000",bd="2px solid #000";
                   if(fb!==null){if(isCorrect){bg="#000";cl="#fff";}else if(isSel){bg="#fff3f0";cl="#d44e25";bd="2px solid #f5c4b5";}else{bg="#fafafa";cl="#ccc";bd="2px solid #efefef";}}
-                  return(<button key={opt} className="abtn" onClick={function(){pickL1(opt);}} disabled={fb!==null} style={{backgroundColor:bg,color:cl,border:bd,fontWeight:"700",fontSize:"14px",padding:"9px 4px"}}>{opt}</button>);
+                  return(<button key={opt} className="abtn" onClick={function(){pickL1(opt);}} disabled={fb!==null} style={{backgroundColor:bg,color:cl,border:bd,fontWeight:"700",fontSize:"16px",minHeight:"60px",padding:"11px 6px"}}>{opt}</button>);
                 })}
               </div>
             </div>
@@ -2550,22 +2662,76 @@ function Game(p){
 /* ═══════════════════════════════════════════════════════════
    ROOT
    ═══════════════════════════════════════════════════════════ */
+function LearningLangPicker(p){
+  var _q=useState(0);var qIdx=_q[0];var setQIdx=_q[1];
+  useEffect(function(){
+    var id=setInterval(function(){setQIdx(function(v){return v===0?1:0;});},2200);
+    return function(){clearInterval(id);};
+  },[]);
+  var txt=p.uiLang==="EN"
+    ? {title:"What language are you learning?",titleEs:"¿Qué idioma quieres aprender?",sub:"Choose one option. We'll remember it for next time.",en:"English/Ingles",es:"Spanish/Español",saving:"Saving..."}
+    : {title:"What language are you learning?",titleEs:"¿Qué idioma quieres aprender?",sub:"Elige una opción. La recordaremos para la próxima vez.",en:"English/Ingles",es:"Spanish/Español",saving:"Guardando..."};
+  return(
+    <div className="ascreen">
+      <div className="acard" style={{maxWidth:"420px"}}>
+        <div style={{textAlign:"center",marginBottom:"20px"}}>
+          <div style={{display:"flex",justifyContent:"center"}}><Logo size={76}/></div>
+          <div className="lang-question-wrap">
+            <div className={"lang-question "+(qIdx===0?"show":"hide")} style={{fontFamily:QF,fontWeight:"900",fontSize:"19px",letterSpacing:".08em",textTransform:"uppercase",marginTop:"10px"}}>{txt.title}</div>
+            <div className={"lang-question "+(qIdx===1?"show":"hide")} style={{fontFamily:QF,fontWeight:"900",fontSize:"19px",letterSpacing:".08em",textTransform:"uppercase",marginTop:"10px"}}>{txt.titleEs}</div>
+          </div>
+          <div style={{fontFamily:QF,fontSize:"12px",color:"#888",marginTop:"6px"}}>{txt.sub}</div>
+        </div>
+        <div style={{display:"grid",gap:"10px"}}>
+          <button className="abig" onClick={function(){p.onPick("EN");}} disabled={p.busy} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",fontSize:"16px",padding:"16px 18px"}}>{p.busy?txt.saving:txt.en}</button>
+          <button className="abig" onClick={function(){p.onPick("ES");}} disabled={p.busy} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",fontSize:"16px",padding:"16px 18px",background:"#fff",color:"#000",border:"2px solid #000"}}>{p.busy?txt.saving:txt.es}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Root(){
   var _sc=useState("splash");var screen=_sc[0];var setScreen=_sc[1];
   var _u=useState(null);var user=_u[0];var setUser=_u[1];
   var _pr=useState(null);var profile=_pr[0];var setProfile=_pr[1];
   var _al=useState("ES");var aLang=_al[0];var setALang=_al[1];
+  var _llb=useState(false);var llBusy=_llb[0];var setLlBusy=_llb[1];
   function togLang(){setALang(function(l){return l==="ES"?"EN":"ES";});}
+  function afterProfileLoad(u,pr){
+    setUser(u);
+    setProfile(pr);
+    if(learningLangCodeFromProfile(pr)){setScreen("game");return;}
+    setScreen("pickLearningLang");
+  }
+  function saveLearningLang(code){
+    if(!user||!user.uid)return;
+    if(llBusy)return;
+    setLlBusy(true);
+    var label=code==="EN"?"English":"Spanish";
+    var payload={learningLangCode:code,learningLang:label,targetLang:label};
+    var done=function(){
+      setProfile(function(prev){return Object.assign({},prev||{},payload);});
+      setLlBusy(false);
+      setScreen("game");
+    };
+    if(window.fbSaveLearningLanguage){
+      window.fbSaveLearningLanguage(user.uid,code).then(done).catch(function(){done();});
+      return;
+    }
+    done();
+  }
   useEffect(function(){
     if(window.fbAuthReady){
       window.fbAuthReady(function(u){
-        if(u){setUser(u);var gp=window.fbGetProfile?window.fbGetProfile(u.uid):Promise.resolve(null);gp.then(function(pr){setProfile(pr);setScreen("game");});}
+        if(u){var gp=window.fbGetProfile?window.fbGetProfile(u.uid):Promise.resolve(null);gp.then(function(pr){afterProfileLoad(u,pr);});}
       });
     }
   },[]);
   if(screen==="splash")return(<Splash onDone={function(){setScreen("login");}}/>);
-  if(screen==="login")return(<Login lang={aLang} onLang={togLang} onLogin={function(u){setUser(u);var gp=window.fbGetProfile?window.fbGetProfile(u.uid):Promise.resolve(null);gp.then(function(pr){setProfile(pr);setScreen("game");});}}/>);
+  if(screen==="login")return(<Login lang={aLang} onLang={togLang} onLogin={function(u){var gp=window.fbGetProfile?window.fbGetProfile(u.uid):Promise.resolve(null);gp.then(function(pr){afterProfileLoad(u,pr);});}}/>);
   if(screen==="register")return(<Register lang={aLang} onLang={togLang} onDone={function(u,pd){setUser(u);setProfile(pd);setScreen("game");}} onLogin={function(){setScreen("login");}}/>);
+  if(screen==="pickLearningLang")return(<LearningLangPicker uiLang={aLang} busy={llBusy} onPick={saveLearningLang}/>);
   return(<Game user={user} profile={profile} onSignOut={function(){if(window.fbSignOut)window.fbSignOut();setUser(null);setProfile(null);setScreen("login");}}/>);
 }
 

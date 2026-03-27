@@ -43,6 +43,15 @@
     .abig{width:100%;padding:14px;font-family:'Questrial',sans-serif;font-size:14px;font-weight:700;letter-spacing:.08em;border-radius:50px;cursor:pointer;border:2px solid #000;background:#000;color:#fff;transition:all .15s;margin-top:6px}
     .abig:hover{background:#222}
     .abig:disabled{background:#ccc;border-color:#ccc;cursor:not-allowed}
+    .lang-question-wrap{position:relative;height:56px;display:flex;align-items:center;justify-content:center}
+    .lang-question{position:absolute;left:0;right:0;transition:opacity .45s ease,transform .45s ease}
+    .lang-question.show{opacity:1;transform:translateY(0)}
+    .lang-question.hide{opacity:0;transform:translateY(8px)}
+    .flag-choice{min-height:64px}
+    .flag-choice .flag-emoji{font-size:30px;line-height:1;display:inline-block;transform-origin:60% 65%}
+    .flag-choice.us .flag-emoji{animation:flagWave 1.6s ease-in-out infinite}
+    .flag-choice.mx .flag-emoji{animation:flagWave 1.6s ease-in-out infinite .2s}
+    @keyframes flagWave{0%,100%{transform:rotate(0deg) scale(1)}25%{transform:rotate(8deg) scale(1.05)}50%{transform:rotate(0deg) scale(1)}75%{transform:rotate(-6deg) scale(1.05)}}
     .alink{font-family:'Questrial',sans-serif;font-size:13px;color:#000;text-decoration:underline;cursor:pointer;background:none;border:none;padding:0}
     .alink:hover{color:#d44e25}
     .aerr{background:#fff3f0;border:1px solid #f5c4b5;border-radius:12px;padding:10px 14px;font-family:'Questrial',sans-serif;font-size:12px;color:#d44e25;margin-bottom:12px;text-align:center}

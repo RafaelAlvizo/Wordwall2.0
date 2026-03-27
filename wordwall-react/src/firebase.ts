@@ -113,6 +113,26 @@ window.fbGetProfile = async function (uid) {
   }
 };
 
+window.fbSaveLearningLanguage = async function (uid, learningLangCode) {
+  if (!uid) return;
+  var code = String(learningLangCode || '').toUpperCase() === 'ES' ? 'ES' : 'EN';
+  var label = code === 'EN' ? 'English' : 'Spanish';
+  try {
+    await setDoc(
+      userWallDataRef(uid),
+      {
+        learningLangCode: code,
+        learningLang: label,
+        targetLang: label,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+  } catch (e) {
+    console.error('fbSaveLearningLanguage:', e);
+  }
+};
+
 window.fbSavePhonemeProblem = async function (uid, userEmail, weaknesses) {
   if (!uid || !weaknesses || !weaknesses.length) return;
   try {
