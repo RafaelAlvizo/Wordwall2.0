@@ -676,6 +676,7 @@ function Game(p){
   var _l2a = useState([]);       var l2ans  = _l2a[0]; var setL2Ans  = _l2a[1];
   var _l2tm= useState(TMAX_L23); var l2timer= _l2tm[0];var setL2Timer= _l2tm[1];
   var l2tref=useRef(null);       var l2tval =useRef(TMAX_L23);
+  var l2InputRef=useRef(null);
 
   /* ── L3 state ── */
   var _l3q = useState(0);        var l3qi   = _l3q[0]; var setL3Qi   = _l3q[1];
@@ -701,6 +702,7 @@ function Game(p){
   var _aq = useState([]);        var asQueue = _aq[0]; var setAsQueue = _aq[1];
   var _aqi= useState(0);         var asQi    = _aqi[0]; var setAsQi    = _aqi[1];
   var _ai = useState("");        var asInp   = _ai[0];  var setAsInp   = _ai[1];
+  var asInputRef=useRef(null);
   var _af = useState(null);      var asFb    = _af[0];  var setAsFb    = _af[1];
   var _aa = useState([]);        var asAns   = _aa[0];  var setAsAns   = _aa[1];
   var _ad = useState(false);     var asDemo  = _ad[0];  var setAsDemo   = _ad[1];
@@ -875,14 +877,15 @@ function Game(p){
       setScreen("assessmentError");
     });
   }
-  function checkAssessment(){
+  function checkAssessment(typedOverride){
     if(!asQueue.length)return;
     var cur=asQueue[asQi]||{prompt:"",target:""};
-    var ok=normCheck(asInp)===normCheck(cur.target);
+    var typedStr=typedOverride!=null?String(typedOverride):asInp;
+    var ok=normCheck(typedStr)===normCheck(cur.target);
     if(ok)sOk();else sWrong();
-    var newAns=asAns.concat([{promptWord:cur.prompt,expected:cur.target,typed:asInp.trim(),correct:ok}]);
+    var newAns=asAns.concat([{promptWord:cur.prompt,expected:cur.target,typed:typedStr.trim(),correct:ok}]);
     setAsAns(newAns);
-    setAsFb({ok:ok,expected:cur.target,typed:asInp.trim()});
+    setAsFb({ok:ok,expected:cur.target,typed:typedStr.trim()});
     setTimeout(function(){
       var nx=asQi+1;
       if(nx>=asQueue.length){
@@ -1208,15 +1211,34 @@ function Game(p){
       if(l2tval.current<=0){clrL2T();checkL2(true);}
     },1000);
     return clrL2T;
-  },[screen,l2qi]);
+  },[screen,l2qi,l2fb]);
+
+  useEffect(function(){
+    if((screen!=="l2play"&&screen!=="asL2play")||l2fb!==null)return;
+    var id=setTimeout(function(){
+      var el=l2InputRef.current;
+      if(el&&typeof el.focus==="function"){el.focus();try{if(typeof el.select==="function")el.select();}catch(e){}}
+    },0);
+    return function(){clearTimeout(id);};
+  },[screen,l2qi,l2fb]);
+
+  useEffect(function(){
+    if(screen!=="assessmentPlay"||asFb!==null)return;
+    var id=setTimeout(function(){
+      var el=asInputRef.current;
+      if(el&&typeof el.focus==="function"){el.focus();try{if(typeof el.select==="function")el.select();}catch(e){}}
+    },0);
+    return function(){clearTimeout(id);};
+  },[screen,asQi,asFb]);
 
   function startL2(){setL2Qi(0);setL2Inp("");setL2Fb(null);setL2Score(0);setL2Ans([]);setL2Timer(TMAX_L23);l2tval.current=TMAX_L23;setScreen("l2play");}
   function startAsL2(){setL2Qi(0);setL2Inp("");setL2Fb(null);setL2Score(0);setL2Ans([]);setL2Timer(TMAX_L23);l2tval.current=TMAX_L23;setScreen("asL2play");}
 
-  function checkL2(timeout){
+  function checkL2(timeout, typedOverride){
     clrL2T();
     var cur=sessW[l2qi];
-    var ok=!timeout&&normCheck(l2inp)===normCheck(cur.targetWord);
+    var typedStr=typedOverride!=null?String(typedOverride):l2inp;
+    var ok=!timeout&&normCheck(typedStr)===normCheck(cur.targetWord);
     if(ok){sOk();}else sWrong();
     if(ok){
       if(screenR.current==="asL2play"){
@@ -1225,9 +1247,9 @@ function Game(p){
         handleCorrectAnswer(cur.targetId, cur.targetWord, wordProg);
       }
     }
-    var newAns=l2ans.concat([{expected:cur.targetWord,typed:l2inp.trim(),correct:ok,timeout:!!timeout,promptWord:cur.promptWord}]);
+    var newAns=l2ans.concat([{expected:cur.targetWord,typed:typedStr.trim(),correct:ok,timeout:!!timeout,promptWord:cur.promptWord}]);
     setL2Ans(newAns);
-    setL2Fb({ok:ok,expected:cur.targetWord,typed:l2inp.trim(),timeout:!!timeout});
+    setL2Fb({ok:ok,expected:cur.targetWord,typed:typedStr.trim(),timeout:!!timeout});
     if(ok)setL2Score(function(s){return s+1;});
     setTimeout(function(){
       var nx=l2qi+1;
@@ -1242,6 +1264,24 @@ function Game(p){
         }
       } else {setL2Qi(nx);setL2Inp("");setL2Fb(null);}
     },1400);
+  }
+
+  function onL2InputChange(e){
+    if(l2fb!==null)return;
+    var v=e.target.value;
+    setL2Inp(v);
+    var cur=sessW[l2qi];
+    if(!cur||!cur.targetWord)return;
+    if(normCheck(v)===normCheck(cur.targetWord))checkL2(false,v);
+  }
+
+  function onAsInputChange(e){
+    if(asFb!==null)return;
+    var v=e.target.value;
+    setAsInp(v);
+    var cur=asQueue[asQi];
+    if(!cur||!cur.target)return;
+    if(normCheck(v)===normCheck(cur.target))checkAssessment(v);
   }
 
   /* ════════════ LEVEL 3 ════════════ */
@@ -1841,13 +1881,12 @@ function Game(p){
               <div style={{fontFamily:QF,fontSize:"10px",color:"#64748b",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"8px"}}>{g.qLbl+" "+(l2qi+1)+" "+g.ofLbl+" "+sessW.length}</div>
               <p style={{fontFamily:QF,fontSize:"26px",fontWeight:"900",letterSpacing:".06em",color:"#0f766e"}}>{cur2.promptWord}</p>
             </div>
-            <input className="write-inp" type="text" placeholder={g.l2ph} value={l2inp} disabled={l2fb!==null}
-              onChange={function(e){setL2Inp(e.target.value);}}
+            <input ref={l2InputRef} className="write-inp" type="text" autoComplete="off" autoCorrect="off" spellCheck={false} placeholder={g.l2ph} value={l2inp} disabled={l2fb!==null}
+              onChange={onL2InputChange}
               onKeyDown={function(e){if(e.key==="Enter"&&l2fb===null)checkL2(false);}}
             />
             <div style={{display:"flex",gap:"10px",width:"100%"}}>
-              <RoundBtn onClick={function(){if(l2fb===null)checkL2(false);}} filled style={{flex:1,fontSize:"14px",padding:"12px 18px",background:"#0d9488",borderColor:"#0d9488"}}>{g.submitTxt}</RoundBtn>
-              <RoundBtn onClick={function(){checkL2(true);}} style={{fontSize:"13px",padding:"12px 18px"}}>{g.skipTxt}</RoundBtn>
+              <RoundBtn onClick={function(){checkL2(true);}} style={{flex:1,fontSize:"13px",padding:"12px 18px"}}>{g.skipTxt}</RoundBtn>
             </div>
             {l2fb?(
               <div style={{width:"100%",border:"1px solid #eee",borderRadius:"14px",padding:"12px 14px",background:"#fff"}}>
@@ -2034,18 +2073,15 @@ function Game(p){
             <p style={{fontFamily:QF,fontSize:"26px",fontWeight:"900",letterSpacing:".06em",color:"#0f766e"}}>{acur.prompt}</p>
             <p style={{fontFamily:QF,fontSize:"11px",color:"#94a3b8",marginTop:"6px"}}>{g.howSay+" «"+acur.prompt+"» "+g.howSayIn}</p>
           </div>
-          <input className="write-inp" type="text" placeholder={g.l2ph} value={asInp} disabled={asFb!==null}
-            onChange={function(e){setAsInp(e.target.value);}}
+          <input ref={asInputRef} className="write-inp" type="text" autoComplete="off" autoCorrect="off" spellCheck={false} placeholder={g.l2ph} value={asInp} disabled={asFb!==null}
+            onChange={onAsInputChange}
             onKeyDown={function(e){if(e.key==="Enter"&&asFb===null)checkAssessment();}}
-            autoFocus={true}
             style={{borderColor:asFb!==null?(asFb.ok?"#16a34a":"#dc2626"):"#000"}}/>
           {asFb!==null?(
             <div style={{width:"100%",padding:"12px 20px",borderRadius:"14px",textAlign:"center",background:asFb.ok?"#000":"#fff3f0",border:asFb.ok?"none":"2px solid #f5c4b5"}}>
               {asFb.ok?(<span style={{fontFamily:QF,fontWeight:"700",fontSize:"16px",color:"#fff",letterSpacing:".08em"}}>{"✓ "+g.l2ok}</span>):(<div><span style={{fontFamily:QF,fontWeight:"700",fontSize:"13px",color:"#d44e25"}}>{g.l2wrong+" "}</span><span style={{fontFamily:QF,fontWeight:"900",fontSize:"16px",color:"#d44e25"}}>{asFb.expected}</span></div>)}
             </div>
-          ):(
-            <RoundBtn onClick={checkAssessment} filled style={{fontSize:"15px",padding:"12px 48px",letterSpacing:".1em"}}>{g.l2check}</RoundBtn>
-          )}
+          ):null}
         </div>
       </div>
       {assessmentDemoFabEl}
@@ -2254,17 +2290,16 @@ function Game(p){
             <p style={{fontFamily:QF,fontSize:"22px",fontWeight:"900",letterSpacing:".08em",color:"#1d4ed8"}}>{cur2.promptWord}</p>
             <p style={{fontFamily:QF,fontSize:"11px",color:"#9ca3af",marginTop:"6px"}}>{g.howSay+" «"+cur2.promptWord+"» "+g.howSayIn}</p>
           </div>
-          <input className="write-inp" type="text" placeholder={g.l2ph} value={l2inp} disabled={l2fb!==null}
-            onChange={function(e){setL2Inp(e.target.value);}}
+          <input ref={l2InputRef} className="write-inp" type="text" autoComplete="off" autoCorrect="off" spellCheck={false} placeholder={g.l2ph} value={l2inp} disabled={l2fb!==null}
+            onChange={onL2InputChange}
             onKeyDown={function(e){if(e.key==="Enter"&&l2fb===null)checkL2(false);}}
-            autoFocus={true}
             style={{borderColor:l2fb!==null?(l2fb.ok?"#16a34a":"#dc2626"):"#000"}}/>
           {l2fb!==null?(
             <div style={{width:"100%",padding:"12px 20px",borderRadius:"14px",textAlign:"center",background:l2fb.ok?"#000":l2fb.timeout?"#fffbeb":"#fff3f0",border:l2fb.ok?"none":l2fb.timeout?"2px solid #fde68a":"2px solid #f5c4b5"}}>
               {l2fb.ok?(<span style={{fontFamily:QF,fontWeight:"700",fontSize:"16px",color:"#fff",letterSpacing:".08em"}}>{"✓ "+g.l2ok}</span>):l2fb.timeout?(<div><span style={{fontFamily:QF,fontWeight:"700",fontSize:"13px",color:"#d97706"}}>{"⏱ "+g.toTxt+" "}</span><span style={{fontFamily:QF,fontWeight:"900",fontSize:"16px",color:"#d97706"}}>{l2fb.expected}</span></div>):(<div><span style={{fontFamily:QF,fontWeight:"700",fontSize:"13px",color:"#d44e25"}}>{g.l2wrong+" "}</span><span style={{fontFamily:QF,fontWeight:"900",fontSize:"16px",color:"#d44e25"}}>{l2fb.expected}</span></div>)}
             </div>
           ):(
-            <RoundBtn onClick={function(){checkL2(false);}} filled style={{fontSize:"15px",padding:"12px 48px",letterSpacing:".1em"}}>{g.l2check}</RoundBtn>
+            <button type="button" onClick={function(){checkL2(true);}} style={{alignSelf:"center",fontFamily:QF,fontSize:"12px",color:"#94a3b8",background:"none",border:"none",cursor:"pointer",textDecoration:"underline"}}>{g.skipTxt}</button>
           )}
           </div>
         </div>
