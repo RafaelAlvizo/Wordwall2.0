@@ -290,8 +290,8 @@ var G={
     l2goL3:"CONTINUAR AL NIVEL 3 →",
     l2detailTitle:"DETALLE",l2typed:"Escribiste:",l2expected:"Correcto:",
     l3badge:"NIVEL 3",l3title:"PRONUNCIACIÓN",
-    l3tap:"🎤 TOCA PARA GRABAR",l3listening:"🔴 ESCUCHANDO…",l3tapStop:"Toca de nuevo para detener y calificar",
-    l3manualHint:"Tú inicias la grabación; no empieza sola.",
+    l3tap:"🎤 ESPACIO O TOCA PARA GRABAR",l3listening:"🔴 ESCUCHANDO…",l3tapStop:"Espacio o toca de nuevo para detener y calificar",
+    l3manualHint:"Presiona Espacio o el botón para grabar; no empieza sola.",
     l3relisten:"🎤 GRABAR DE NUEVO",l3relistenHint:"Cuando termines, toca otra vez el botón para enviar.",
     l3continueNext:"SIGUIENTE PALABRA →",
     l3RetryHint:function(n){return"Intenta de nuevo · te quedan "+n+" intento"+(n===1?"":"s");},
@@ -330,7 +330,14 @@ var G={
     demoMcEndTitle:"Ronda demo — opción múltiple",demoMcEndSub:"Nada se guarda en tu cuenta.",
     demoMcNextTyping:"SIGUIENTE: ESCRIBIR TRADUCCIÓN →",
     wallCrumbleHint:"El muro se derrumba… siguiente bloque de 10 palabras.",
-    demoSkipSection:"SALTAR SECCIÓN"
+    demoSkipSection:"SALTAR SECCIÓN",
+    instrReady:"¿LISTO?",instrStart:"▶ COMENZAR EJERCICIO",
+    instrL1Title:"NIVEL 1 — OPCIÓN MÚLTIPLE",
+    instrL1Rules:["Selecciona la traducción correcta","Tienes 5 segundos por palabra","Los puntos dependen de tu velocidad","Cada palabra necesita 3 aciertos para verificarse"],
+    instrL2Title:"NIVEL 2 — ESCRIBE LA RESPUESTA",
+    instrL2Rules:["Escribe la traducción correcta","Tienes 8 segundos por palabra","Presiona Enter o el botón para verificar","Puedes pausar en cualquier momento"],
+    instrL3Title:"NIVEL 3 — PRONUNCIACIÓN",
+    instrL3Rules:["Presiona Espacio o el botón para grabar","Pronuncia la palabra claramente","Presiona de nuevo para enviar","Tienes hasta 3 intentos por palabra","Se avanzará automáticamente tras la retroalimentación"]
   },
   EN:{
     title:"WORD WALL PROGRESS",
@@ -347,8 +354,8 @@ var G={
     l2goL3:"CONTINUE TO LEVEL 3 →",
     l2detailTitle:"DETAIL",l2typed:"You wrote:",l2expected:"Correct:",
     l3badge:"LEVEL 3",l3title:"PRONUNCIATION",
-    l3tap:"🎤 TAP TO RECORD",l3listening:"🔴 LISTENING…",l3tapStop:"Tap again to stop and grade",
-    l3manualHint:"You start recording — nothing runs automatically.",
+    l3tap:"🎤 SPACE OR TAP TO RECORD",l3listening:"🔴 LISTENING…",l3tapStop:"Space or tap again to stop and grade",
+    l3manualHint:"Press Space or tap the button to record — nothing runs automatically.",
     l3relisten:"🎤 RECORD AGAIN",l3relistenHint:"When you’re done speaking, tap the button again to submit.",
     l3continueNext:"NEXT WORD →",
     l3RetryHint:function(n){return"Try again · "+n+" attempt"+(n===1?"":"s")+" left";},
@@ -387,7 +394,14 @@ var G={
     demoMcEndTitle:"Demo round — multiple choice",demoMcEndSub:"Nothing is saved to your account.",
     demoMcNextTyping:"NEXT: TYPE THE TRANSLATION →",
     wallCrumbleHint:"The wall crumbles… next set of 10 words.",
-    demoSkipSection:"SKIP SECTION"
+    demoSkipSection:"SKIP SECTION",
+    instrReady:"READY?",instrStart:"▶ START EXERCISE",
+    instrL1Title:"LEVEL 1 — MULTIPLE CHOICE",
+    instrL1Rules:["Select the correct translation","You have 5 seconds per word","Points depend on your speed","Each word needs 3 correct answers to be verified"],
+    instrL2Title:"LEVEL 2 — WRITE THE ANSWER",
+    instrL2Rules:["Type the correct translation","You have 8 seconds per word","Press Enter or the button to check","You can pause at any time"],
+    instrL3Title:"LEVEL 3 — PRONUNCIATION",
+    instrL3Rules:["Press Space or the button to record","Say the word clearly","Press again to submit","You have up to 3 attempts per word","It will auto-advance after feedback"]
   }
 };
 
@@ -1030,7 +1044,7 @@ function Game(p){
         setL3Qi(0); setL3Listen(false); setL3Fb(null); setL3Res([]);
         setL3Timer(TMAX_L23);
         l3PendingNewResRef.current=null;l3WaitContRef.current=false;setL3WaitContinue(false);
-        setScreen("playing");
+        setScreen("l1instructions");
       })
       .catch(function(e){
         console.error("WordWall load error:",e);
@@ -1231,7 +1245,9 @@ function Game(p){
     return function(){clearTimeout(id);};
   },[screen,asQi,asFb]);
 
-  function startL2(){setL2Qi(0);setL2Inp("");setL2Fb(null);setL2Score(0);setL2Ans([]);setL2Timer(TMAX_L23);l2tval.current=TMAX_L23;setScreen("l2play");}
+  function startL2(){setL2Qi(0);setL2Inp("");setL2Fb(null);setL2Score(0);setL2Ans([]);setL2Timer(TMAX_L23);l2tval.current=TMAX_L23;setScreen("l2instructions");}
+  function pauseL2Exercise(){clrL2T();if(screenR.current==="l2play")setScreen("l2paused");}
+  function resumeL2Exercise(){setScreen("l2play");}
   function startAsL2(){setL2Qi(0);setL2Inp("");setL2Fb(null);setL2Score(0);setL2Ans([]);setL2Timer(TMAX_L23);l2tval.current=TMAX_L23;setScreen("asL2play");}
 
   function checkL2(timeout, typedOverride){
@@ -1295,7 +1311,7 @@ function Game(p){
     l3SessionKindRef.current="wall";
     l3FailCountRef.current=0;l3PendingNewResRef.current=null;l3WaitContRef.current=false;setL3WaitContinue(false);
     setL3Qi(0);setL3Listen(false);setL3Fb(null);setL3Res([]);setL3Timer(TMAX_L23);
-    requestMicOnce(function(){setScreen("l3play");});
+    requestMicOnce(function(){setScreen("l3instructions");});
   }
   function startAsL3(){
     l3SessionKindRef.current="assess";
@@ -1404,6 +1420,19 @@ function Game(p){
     if(l3fb&&l3fb.retry)setL3Fb(null);
     startSpeech();
   }
+  /* ── Spacebar hotkey for L3 recording ── */
+  useEffect(function(){
+    if(screen!=="l3play"&&screen!=="asL3play")return;
+    function onKey(e){
+      if(e.code==="Space"&&!e.repeat){
+        e.preventDefault();
+        toggleL3Recording();
+      }
+    }
+    window.addEventListener("keydown",onKey);
+    return function(){window.removeEventListener("keydown",onKey);};
+  },[screen,l3listen,l3WaitContinue,l3fb]);
+
   useEffect(function(){
     if((screen!=="l3play"&&screen!=="asL3play")||l3listen||l3WaitContinue||l3fb!==null){
       clrL3StartWaitT();
@@ -1427,6 +1456,15 @@ function Game(p){
     l3WaitContRef.current=true;
     setL3WaitContinue(true);
   }
+  /* ── Auto-advance L3 after short review delay ── */
+  useEffect(function(){
+    if(!l3WaitContinue)return;
+    if(screen!=="l3play"&&screen!=="asL3play")return;
+    var id=setTimeout(function(){
+      if(l3WaitContRef.current)applyL3WordComplete();
+    },2000);
+    return function(){clearTimeout(id);};
+  },[l3WaitContinue,screen]);
   function applyL3WordComplete(){
     var newRes=l3PendingNewResRef.current;
     l3PendingNewResRef.current=null;
@@ -1682,7 +1720,9 @@ function Game(p){
 
   function GameHeader(hp){
     var subLine="sub" in hp?hp.sub:getCatName();
-    return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"3px",maxWidth:"960px",width:"100%",alignSelf:"center"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><span className="lvl-badge" style={{background:hp.color||"#000",color:"#fff"}}>{hp.badge}</span><div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{hp.title}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase",marginTop:"1px"}}>{subLine}</div></div></div><DashBackBtn onClick={goDashboard} label={g.exerciseBack}/></div>);
+    var catName=getCatName();
+    var showCatPill=!("sub" in hp);
+    return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"3px",maxWidth:"960px",width:"100%",alignSelf:"center"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><span className="lvl-badge" style={{background:hp.color||"#000",color:"#fff"}}>{hp.badge}</span><div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{hp.title}</h1>{showCatPill?(<span style={{display:"inline-block",marginTop:"3px",padding:"2px 10px",borderRadius:"50px",background:hp.color?hp.color+"18":"#f5f5f5",border:"1.5px solid "+(hp.color||"#ccc"),fontFamily:QF,fontSize:"10px",fontWeight:"700",letterSpacing:".08em",textTransform:"uppercase",color:hp.color||"#555"}}>{catName}</span>):(<div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase",marginTop:"1px"}}>{subLine}</div>)}</div></div><DashBackBtn onClick={goDashboard} label={g.exerciseBack}/></div>);
   }
 
   function Pbar(pp){
@@ -2258,6 +2298,18 @@ function Game(p){
     );
   }
 
+  /* ── L2 PAUSED ── */
+  if(screen==="l2paused")return(
+    <div className="groot" style={{justifyContent:"center"}}>
+      <GameHeader badge={g.l2badge} title={g.l2title} color="#1d4ed8"/>
+      <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"16px",padding:"32px 20px",textAlign:"center",maxWidth:"420px"}}>
+        <div style={{fontFamily:QF,fontSize:"18px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase"}}>{g.pauseMsg}</div>
+        <div style={{fontFamily:QF,fontSize:"13px",color:"#777"}}>{g.pauseSub}</div>
+        <RoundBtn onClick={resumeL2Exercise} filled style={{fontSize:"14px",padding:"12px 36px",background:"#1d4ed8",borderColor:"#1d4ed8"}}>{"▶ "+g.resumeTxt}</RoundBtn>
+      </div>
+    </div>
+  );
+
   /* ── L2 PLAY ── */
   if(screen==="l2play"){
     if(!sessW.length)return null;
@@ -2275,6 +2327,9 @@ function Game(p){
     return(
       <div className="groot">
         <GameHeader badge={g.l2badge} title={g.l2title} color="#1d4ed8"/>
+        <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",display:"flex",justifyContent:"flex-end",marginBottom:"4px"}}>
+          <button type="button" onClick={pauseL2Exercise} style={{padding:"7px 16px",borderRadius:"50px",background:"#fff",color:"#000",border:"2px solid #000",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em"}}>{g.pauseTxt}</button>
+        </div>
         <Pbar cur={l2qi+(l2fb!==null?1:0)} c1="#1e40af" c2="#3b82f6"/>
         <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",display:"grid",gridTemplateColumns:"minmax(400px, 44%) 1fr",gap:"24px",alignItems:"start",marginTop:"10px"}}>
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
@@ -2607,6 +2662,39 @@ function Game(p){
     );
   }
 
+  /* ── INSTRUCTION SCREENS ── */
+  function InstructionScreen(ip){
+    return(
+      <div className="groot" style={{justifyContent:"center"}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"20px",padding:"32px 20px",textAlign:"center",maxWidth:"460px"}}>
+          <span className="lvl-badge" style={{background:ip.color||"#000",color:"#fff",fontSize:"12px",padding:"6px 18px"}}>{ip.badge}</span>
+          <h2 style={{fontFamily:QF,fontWeight:"900",fontSize:"22px",letterSpacing:".12em",textTransform:"uppercase",margin:0}}>{ip.title}</h2>
+          <span style={{display:"inline-block",padding:"3px 14px",borderRadius:"50px",background:ip.color?ip.color+"18":"#f5f5f5",border:"1.5px solid "+(ip.color||"#ccc"),fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em",textTransform:"uppercase",color:ip.color||"#555"}}>{getCatName()}</span>
+          <div style={{display:"flex",flexDirection:"column",gap:"10px",width:"100%",textAlign:"left"}}>
+            {ip.rules.map(function(r,i){return(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 16px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
+                <span style={{fontFamily:QF,fontSize:"16px",fontWeight:"900",color:ip.color||"#000",flexShrink:0,width:"24px",textAlign:"center"}}>{i+1}</span>
+                <span style={{fontFamily:QF,fontSize:"13px",color:"#333",lineHeight:"1.4"}}>{r}</span>
+              </div>
+            );})}
+          </div>
+          <RoundBtn onClick={ip.onStart} filled style={{fontSize:"16px",padding:"16px 48px",letterSpacing:".1em",background:ip.color||"#000",borderColor:ip.color||"#000",marginTop:"6px"}}>{g.instrStart}</RoundBtn>
+          <button type="button" onClick={goDashboard} style={{fontFamily:QF,fontSize:"12px",color:"#aaa",background:"none",border:"none",cursor:"pointer"}}>{g.backStart}</button>
+        </div>
+      </div>
+    );
+  }
+
+  if(screen==="l1instructions")return(
+    <InstructionScreen badge={"NIVEL 1"} title={g.instrL1Title} color="#e8633a" rules={g.instrL1Rules} onStart={function(){setScreen("playing");}}/>
+  );
+  if(screen==="l2instructions")return(
+    <InstructionScreen badge={g.l2badge} title={g.instrL2Title} color="#1d4ed8" rules={g.instrL2Rules} onStart={function(){setScreen("l2play");}}/>
+  );
+  if(screen==="l3instructions")return(
+    <InstructionScreen badge={g.l3badge} title={g.instrL3Title} color="#7c3aed" rules={g.instrL3Rules} onStart={function(){setScreen("l3play");}}/>
+  );
+
   /* ── L1 PLAYING ── */
   if(screen!=="playing"&&screen!=="paused")return null;
   if(!sessW.length)return null;
@@ -2623,7 +2711,7 @@ function Game(p){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"2px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
           <span className="lvl-badge" style={{background:"#000",color:"#fff"}}>NIVEL 1</span>
-          <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.title}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{getCatName()}</div></div>
+          <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.title}</h1><span style={{display:"inline-block",marginTop:"3px",padding:"2px 10px",borderRadius:"50px",background:"#f5f5f5",border:"1.5px solid #ccc",fontFamily:QF,fontSize:"10px",fontWeight:"700",letterSpacing:".08em",textTransform:"uppercase",color:"#555"}}>{getCatName()}</span></div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
           <span style={{fontFamily:QF,fontSize:"14px",fontWeight:"700"}}>{"⭐ "+score+" "+g.pts}</span>
