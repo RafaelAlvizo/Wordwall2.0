@@ -247,18 +247,17 @@ function getAssessmentDemoWords(gameLang){
    Filters out already-verified words (timesDone >= 3).
    Returns [] if all words are verified.
    ───────────────────────────────────────────────────────────── */
-function buildSessionQueue(cat, wordProgress, gameLang){
+function buildSessionQueue(cat, wordProgress, gameLang, forceAll){
   function getTarget(pair){ return gameLang==="ES" ? pair.enWord : pair.esWord; }
   function getPrompt(pair) { return gameLang==="ES" ? pair.esWord : pair.enWord; }
   function getId(pair)     { return gameLang==="ES" ? pair.enId  : pair.esId;   }
 
-  var pendingPairs = cat.pairs.filter(function(pair){
+  var pendingPairs = forceAll ? cat.pairs.slice() : cat.pairs.filter(function(pair){
     var id=String(getId(pair));
     var done=((wordProgress||{})[id]||{}).timesDone||0;
     return done<VERIFIED_NEEDED;
   });
   if(!pendingPairs.length)return [];
-  /* Options are built from pending words only (4 choices each). */
   var allTargetWords = pendingPairs.map(function(pair){ return getTarget(pair); });
   return shuffle(pendingPairs.slice()).map(function(pair){
     return {
@@ -670,6 +669,10 @@ function Game(p){
   var _wb  = useState({});       var wordBank= _wb[0];  var setWordBank= _wb[1];
   var _wp  = useState({});       var wordProg= _wp[0];  var setWordProg= _wp[1];
   var _sw  = useState([]);       var sessW   = _sw[0];  var setSessW   = _sw[1];
+  var _ic  = useState(0);        var iterCount= _ic[0]; var setIterCount= _ic[1];
+  var iterCountRef = useRef(0);
+  iterCountRef.current = iterCount;
+  var REQUIRED_ITERATIONS = 3;
 
   /* ── L1 state ── */
   var _qi  = useState(0);        var qi      = _qi[0];  var setQi      = _qi[1];
@@ -857,10 +860,23 @@ function Game(p){
     if(screen!=="start"||!user||!user.uid)return;
     if(!window.fbGetWordProgress)return;
     window.fbGetWordProgress(user.uid).then(function(prog){ setWordProg(prog||{}); });
+    if(window.fbGetWallIterations){
+      window.fbGetWallIterations(user.uid).then(function(n){ setIterCount(n||0); });
+    }
   }, [screen, user]);
 
+  useEffect(function(){
+    if(screen!=="l3end")return;
+    var isLastCat = catIdx >= WORD_PAIRS_DATA.length - 1;
+    if(!isLastCat)return;
+    if(iterCount < REQUIRED_ITERATIONS)return;
+    if(!user||!user.email)return;
+    var t=setTimeout(function(){ startAssessment(); },1500);
+    return function(){clearTimeout(t);};
+  },[screen, iterCount, catIdx]);
+
   function startAssessment(){
-    if(!wallComplete||!user||!user.email){setScreen("start");return;}
+    if((!wallComplete&&iterCount<REQUIRED_ITERATIONS)||!user||!user.email){setScreen("start");return;}
     setAsDemo(false);
     setAsDemoLiveList(false);
     setScreen("assessmentLoading");
@@ -1030,7 +1046,8 @@ function Game(p){
         setWordProg(finalProg);
         setCatIdx(ci);
 
-        var queue = buildSessionQueue(cat, finalProg, lang);
+        var forceAll = iterCountRef.current < REQUIRED_ITERATIONS;
+        var queue = buildSessionQueue(cat, finalProg, lang, forceAll);
 
         if(!queue.length){
           setScreen("catComplete");
@@ -1534,6 +1551,15 @@ function Game(p){
       } else {
         if(window.fbSaveResult)window.fbSaveResult({userId:user?user.uid:"guest",userEmail:user?user.email:"",language:lang,category:WORD_PAIRS_DATA[catIdx].id,level:3,pronunciationScore:fc3,avgPhoneticScore:avgS,totalQuestions:sessW.length});
         if(weaknesses.length&&user&&user.uid&&window.fbSavePhonemeProblem)window.fbSavePhonemeProblem(user.uid,user.email||"",weaknesses);
+        var isLastCat = catIdx >= WORD_PAIRS_DATA.length - 1;
+        if(isLastCat){
+          var newIter = iterCountRef.current + 1;
+          setIterCount(newIter);
+          iterCountRef.current = newIter;
+          if(user && user.uid && window.fbSaveWallIterations){
+            window.fbSaveWallIterations(user.uid, newIter);
+          }
+        }
         setScreen("l3end");
       }
       return;
@@ -2195,10 +2221,15 @@ function Game(p){
         <div style={{fontFamily:QF,fontWeight:"900",fontSize:"22px",letterSpacing:".1em",textTransform:"uppercase"}}>{g.catDoneTitle}</div>
         <div style={{fontFamily:QF,fontSize:"13px",color:"#555",maxWidth:"360px",lineHeight:"1.6"}}>{g.catDoneSub}</div>
         <div style={{marginTop:"8px",display:"flex",gap:"10px",flexWrap:"wrap",justifyContent:"center"}}>
-          {hasNext?(<RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{fontSize:"14px",padding:"14px 32px"}}>{"▶ "+g.catDoneNext}</RoundBtn>):null}
-          {!hasNext&&wallComplete&&user&&user.email?(<RoundBtn onClick={startAssessment} filled style={{fontSize:"14px",padding:"14px 24px",background:"#0d9488",borderColor:"#0d9488"}}>{g.assessCTA}</RoundBtn>):null}
-          <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"13px",padding:"13px 24px"}}>{g.catDoneBack}</RoundBtn>
+          {hasNext?(
+            <RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{fontSize:"14px",padding:"14px 32px"}}>{"▶ "+g.catDoneNext}</RoundBtn>
+          ):iterCount<REQUIRED_ITERATIONS?(
+            <RoundBtn onClick={function(){startCat(0);}} filled style={{fontSize:"14px",padding:"14px 32px"}}>{lang==="EN"?"▶ START ITERATION "+iterCount+"/"+REQUIRED_ITERATIONS:"▶ INICIAR ITERACIÓN "+iterCount+"/"+REQUIRED_ITERATIONS}</RoundBtn>
+          ):user&&user.email?(
+            <RoundBtn onClick={startAssessment} filled style={{fontSize:"14px",padding:"14px 24px",background:"#0d9488",borderColor:"#0d9488"}}>{g.assessCTA}</RoundBtn>
+          ):null}
         </div>
+        <div style={{marginTop:"4px"}}><span style={{fontFamily:QF,fontSize:"10px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{lang==="EN"?"ITERATIONS: ":"ITERACIONES: "}{Math.min(iterCount,REQUIRED_ITERATIONS)+"/"+REQUIRED_ITERATIONS}</span></div>
         <button onClick={function(){setShowFW(true);}} style={{marginTop:"8px",padding:"10px 24px",borderRadius:"50px",border:"2px solid #e8e8e8",background:"#fff",cursor:"pointer",fontFamily:QF,fontSize:"12px",fontWeight:"700",color:"#555"}}>
           🧱 {lang==="EN"?"SEE FULL WALL":"VER PARED COMPLETA"} ({allBD.filter(function(d){return d&&d.timesDone>=3;}).length+"/30"})
         </button>
@@ -2231,11 +2262,16 @@ function Game(p){
           </div>
         </div>
       </div>
-      {wallComplete&&user&&user.email?(
+      {(wallComplete||iterCount>=REQUIRED_ITERATIONS)&&user&&user.email?(
         <div style={{width:"100%",maxWidth:"520px",marginBottom:"16px",padding:"16px 20px",borderRadius:"16px",border:"2px solid #0d9488",background:"#f0fdfa",textAlign:"center"}}>
           <div style={{fontFamily:QF,fontSize:"12px",fontWeight:"700",letterSpacing:".08em",color:"#0f766e",marginBottom:"8px",textTransform:"uppercase"}}>{g.assessBadge}</div>
           <div style={{fontFamily:QF,fontSize:"13px",color:"#334155",lineHeight:"1.5",marginBottom:"12px"}}>{g.assessIntro}</div>
           <RoundBtn onClick={startAssessment} filled style={{fontSize:"14px",padding:"12px 28px",background:"#0d9488",borderColor:"#0d9488"}}>{g.assessCTA}</RoundBtn>
+        </div>
+      ):null}
+      {iterCount>0?(
+        <div style={{marginBottom:"12px",textAlign:"center"}}>
+          <span style={{fontFamily:QF,fontSize:"11px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{lang==="EN"?"ITERATIONS COMPLETED: ":"ITERACIONES COMPLETADAS: "}{Math.min(iterCount,REQUIRED_ITERATIONS)+"/"+REQUIRED_ITERATIONS}</span>
         </div>
       ):null}
       <RoundBtn onClick={function(){startCat(0);}} filled style={{fontSize:"16px",padding:"15px 64px",letterSpacing:".12em"}}>{"▶ "+g.start}</RoundBtn>
@@ -2285,10 +2321,6 @@ function Game(p){
             </div>
             <div style={{display:"flex",gap:"6px",flexDirection:"column"}}>
               <RoundBtn onClick={startL2} filled style={{fontSize:"13px",padding:"12px 16px",letterSpacing:".05em"}}>{"▶ "+g.goL2}</RoundBtn>
-              <div style={{display:"flex",gap:"6px"}}>
-                <RoundBtn onClick={function(){startCat(catIdx);}} style={{flex:1,fontSize:"11px",padding:"10px 8px"}}>{g.againTxt}</RoundBtn>
-                <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"11px",padding:"10px 14px"}}>←</RoundBtn>
-              </div>
             </div>
           </div>
         </div>
@@ -2388,7 +2420,6 @@ function Game(p){
           </div>
           <div style={{display:"flex",gap:"10px"}}>
             <RoundBtn onClick={startL3} filled style={{flex:1,fontSize:"14px",padding:"14px 20px",letterSpacing:".06em"}}>{"🎤 "+g.l2goL3}</RoundBtn>
-            <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"13px",padding:"14px 16px"}}>←</RoundBtn>
           </div>
         </div>
       </div>
@@ -2528,10 +2559,19 @@ function Game(p){
             </div>);
           })}
           <div style={{display:"flex",gap:"10px",marginTop:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
-            {hasNext2?(<RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{flex:2,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{"▶ "+g.nextCatTxt+" "+(lang==="ES"?WORD_PAIRS_DATA[catIdx+1].nameES:WORD_PAIRS_DATA[catIdx+1].nameEN)}</RoundBtn>):null}
-            {!hasNext2&&wallComplete&&user&&user.email?(<RoundBtn onClick={startAssessment} filled style={{flex:2,fontSize:"13px",padding:"14px 16px",background:"#0d9488",borderColor:"#0d9488",letterSpacing:".04em"}}>{g.assessCTA}</RoundBtn>):null}
-            <RoundBtn onClick={function(){startCat(catIdx);}} style={{flex:1,fontSize:"13px",padding:"13px 16px"}}>{g.againTxt}</RoundBtn>
-            <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"13px",padding:"13px 16px"}}>{g.backStart}</RoundBtn>
+            {hasNext2?(
+              <RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{"▶ "+g.nextCatTxt+" "+(lang==="ES"?WORD_PAIRS_DATA[catIdx+1].nameES:WORD_PAIRS_DATA[catIdx+1].nameEN)}</RoundBtn>
+            ):iterCount<REQUIRED_ITERATIONS?(
+              <RoundBtn onClick={function(){startCat(0);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{lang==="EN"?"▶ START ITERATION "+iterCount+"/"+REQUIRED_ITERATIONS:"▶ INICIAR ITERACIÓN "+iterCount+"/"+REQUIRED_ITERATIONS}</RoundBtn>
+            ):user&&user.email?(
+              <div style={{flex:1,textAlign:"center",padding:"14px 16px",borderRadius:"50px",background:"#f0fdfa",border:"2px solid #0d9488"}}>
+                <div className="spinner" style={{width:"20px",height:"20px",borderTopColor:"#0d9488",margin:"0 auto 6px"}}></div>
+                <span style={{fontFamily:QF,fontSize:"12px",fontWeight:"700",color:"#0d9488",letterSpacing:".06em"}}>{lang==="EN"?"LOADING KNOWN WORDS...":"CARGANDO PALABRAS CONOCIDAS..."}</span>
+              </div>
+            ):null}
+          </div>
+          <div style={{textAlign:"center",marginBottom:"8px"}}>
+            <span style={{fontFamily:QF,fontSize:"10px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{lang==="EN"?"ITERATIONS: ":"ITERACIONES: "}{Math.min(iterCount,REQUIRED_ITERATIONS)+"/"+REQUIRED_ITERATIONS}{iterCount>=REQUIRED_ITERATIONS?(lang==="EN"?" — ASSESSMENT UNLOCKED!":" — ¡EVALUACIÓN DESBLOQUEADA!"):""}</span>
           </div>
           <button onClick={function(){setShowFW(true);}} style={{width:"100%",marginBottom:"24px",padding:"12px 20px",borderRadius:"50px",border:"2px solid #e8e8e8",background:"#fff",cursor:"pointer",fontFamily:QF,fontSize:"13px",fontWeight:"700",letterSpacing:".06em",color:"#555",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",transition:"all .15s"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#000";e.currentTarget.style.color="#000";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#e8e8e8";e.currentTarget.style.color="#555";}}>
             🧱 {lang==="EN"?"SEE FULL WALL":"VER PARED COMPLETA"}
@@ -2665,14 +2705,14 @@ function Game(p){
   /* ── INSTRUCTION SCREENS ── */
   function InstructionScreen(ip){
     return(
-      <div className="groot" style={{justifyContent:"center"}}>
-        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"20px",padding:"32px 20px",textAlign:"center",maxWidth:"460px"}}>
+      <div className="groot" style={{justifyContent:"center",alignItems:"center"}}>
+        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"20px",padding:"32px 20px",textAlign:"center",maxWidth:"460px",width:"100%",margin:"0 auto"}}>
           <span className="lvl-badge" style={{background:ip.color||"#000",color:"#fff",fontSize:"12px",padding:"6px 18px"}}>{ip.badge}</span>
           <h2 style={{fontFamily:QF,fontWeight:"900",fontSize:"22px",letterSpacing:".12em",textTransform:"uppercase",margin:0}}>{ip.title}</h2>
           <span style={{display:"inline-block",padding:"3px 14px",borderRadius:"50px",background:ip.color?ip.color+"18":"#f5f5f5",border:"1.5px solid "+(ip.color||"#ccc"),fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em",textTransform:"uppercase",color:ip.color||"#555"}}>{getCatName()}</span>
-          <div style={{display:"flex",flexDirection:"column",gap:"10px",width:"100%",textAlign:"left"}}>
+          <div style={{display:"flex",flexDirection:"column",gap:"10px",width:"100%",textAlign:"center"}}>
             {ip.rules.map(function(r,i){return(
-              <div key={i} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 16px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
+              <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:"12px",padding:"10px 16px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
                 <span style={{fontFamily:QF,fontSize:"16px",fontWeight:"900",color:ip.color||"#000",flexShrink:0,width:"24px",textAlign:"center"}}>{i+1}</span>
                 <span style={{fontFamily:QF,fontSize:"13px",color:"#333",lineHeight:"1.4"}}>{r}</span>
               </div>

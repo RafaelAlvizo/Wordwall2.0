@@ -310,6 +310,30 @@ window.fbSaveWordProgress = async function (userId, wordId, wordText, timesDone)
   }
 };
 
+window.fbGetWallIterations = async function (userId) {
+  try {
+    var s = await getDoc(userWallDataRef(userId));
+    if (!s.exists()) return 0;
+    var d = s.data();
+    return typeof d.wallIterations === 'number' ? d.wallIterations : 0;
+  } catch (e) {
+    console.error('fbGetWallIterations:', e);
+    return 0;
+  }
+};
+
+window.fbSaveWallIterations = async function (userId, count) {
+  try {
+    await setDoc(
+      userWallDataRef(userId),
+      { wallIterations: count, wallIterationsUpdatedAt: serverTimestamp() },
+      { merge: true },
+    );
+  } catch (e) {
+    console.error('fbSaveWallIterations:', e);
+  }
+};
+
 window.fbSaveAssessmentProgress = async function (userId, entryId, promptWord, targetWord, timesDone) {
   try {
     var ref = userWallDataRef(userId);
