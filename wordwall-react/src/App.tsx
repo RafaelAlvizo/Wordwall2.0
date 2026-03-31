@@ -2,7 +2,6 @@
 // @ts-nocheck
 import React from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import './app.css';
 import './firebase';
 
@@ -125,13 +124,14 @@ var ROWS_FULL = [
 
 function shuffle(arr){var a=arr.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
 
-function isAllWordWallComplete(wordProgress, gameLang){
-  for(var ci=0;ci<WORD_PAIRS_DATA.length;ci++){
-    var cat=WORD_PAIRS_DATA[ci];
+function isAllWordWallComplete(wordProgress, gameLang, cats){
+  var allCats = cats || WORD_PAIRS_DATA;
+  for(var ci=0;ci<allCats.length;ci++){
+    var cat=allCats[ci];
     for(var pi=0;pi<cat.pairs.length;pi++){
       var id=String(gameLang==="ES"?cat.pairs[pi].enId:cat.pairs[pi].esId);
       var p=(wordProgress[id]||{});
-      if((p.timesDone||0)<VERIFIED_NEEDED)return false;
+      if(!p.completed)return false;
     }
   }
   return true;
@@ -247,19 +247,23 @@ function getAssessmentDemoWords(gameLang){
    Filters out already-verified words (timesDone >= 3).
    Returns [] if all words are verified.
    ───────────────────────────────────────────────────────────── */
-function buildSessionQueue(cat, wordProgress, gameLang, forceAll){
+function buildSessionQueue(cat, wordProgress, gameLang){
   function getTarget(pair){ return gameLang==="ES" ? pair.enWord : pair.esWord; }
   function getPrompt(pair) { return gameLang==="ES" ? pair.esWord : pair.enWord; }
   function getId(pair)     { return gameLang==="ES" ? pair.enId  : pair.esId;   }
 
-  var pendingPairs = forceAll ? cat.pairs.slice() : cat.pairs.filter(function(pair){
+  var pendingPairs = cat.pairs.filter(function(pair){
     var id=String(getId(pair));
-    var done=((wordProgress||{})[id]||{}).timesDone||0;
-    return done<VERIFIED_NEEDED;
+    var prog=(wordProgress||{})[id]||{};
+    return !prog.completed;
   });
   if(!pendingPairs.length)return [];
-  var allTargetWords = pendingPairs.map(function(pair){ return getTarget(pair); });
-  return shuffle(pendingPairs.slice()).map(function(pair){
+  var sessionPairs = pendingPairs;
+  if(cat && cat.id==="knownWords" && pendingPairs.length>10){
+    sessionPairs = pendingPairs.slice(0,10);
+  }
+  var allTargetWords = cat.pairs.map(function(pair){ return getTarget(pair); });
+  return shuffle(sessionPairs.slice()).map(function(pair){
     return {
       promptWord : getPrompt(pair),
       targetWord : getTarget(pair),
@@ -323,7 +327,7 @@ var G={
     assessCTA:"▶ PRACTICAR PALABRAS CONOCIDAS",assessLoad:"Cargando tu lista…",assessEmpty:"No hay palabras registradas para tu correo en Evaluación.",
     assessErr:"No se pudo cargar la lista. Intenta de nuevo.",assessRetry:"REINTENTAR",assessHint:"Escribe la traducción correcta.",
     assessEndTitle:"PRÁCTICA COMPLETADA",assessBack:"← VOLVER AL INICIO",
-    assessDemoFab:"Vista previa",assessDemoBanner:"Demo — sin guardar datos",
+    assessDemoBanner:"Demo — sin guardar datos",
     assessDemoLiveBanner:"Demo — palabras de tu vocabulario · sin guardar",
     demoMcBadge:"DEMO",demoMcHead:"MURO + OPCIÓN MÚLTIPLE",demoMcWallLbl:"MURO",
     demoMcEndTitle:"Ronda demo — opción múltiple",demoMcEndSub:"Nada se guarda en tu cuenta.",
@@ -387,7 +391,7 @@ var G={
     assessCTA:"▶ PRACTICE KNOWN WORDS",assessLoad:"Loading your list…",assessEmpty:"No words found for your email in Assessment.",
     assessErr:"Could not load the list. Please try again.",assessRetry:"RETRY",assessHint:"Type the correct translation.",
     assessEndTitle:"PRACTICE COMPLETE",assessBack:"← BACK TO START",
-    assessDemoFab:"Preview",assessDemoBanner:"Demo — nothing is saved",
+    assessDemoBanner:"Demo — nothing is saved",
     assessDemoLiveBanner:"Demo — words from your vocabulary · nothing saved",
     demoMcBadge:"DEMO",demoMcHead:"WALL + MULTIPLE CHOICE",demoMcWallLbl:"WALL",
     demoMcEndTitle:"Demo round — multiple choice",demoMcEndSub:"Nothing is saved to your account.",
@@ -669,10 +673,8 @@ function Game(p){
   var _wb  = useState({});       var wordBank= _wb[0];  var setWordBank= _wb[1];
   var _wp  = useState({});       var wordProg= _wp[0];  var setWordProg= _wp[1];
   var _sw  = useState([]);       var sessW   = _sw[0];  var setSessW   = _sw[1];
-  var _ic  = useState(0);        var iterCount= _ic[0]; var setIterCount= _ic[1];
-  var iterCountRef = useRef(0);
-  iterCountRef.current = iterCount;
-  var REQUIRED_ITERATIONS = 3;
+  var _kwc = useState(null);    var knownWordsCat= _kwc[0]; var setKnownWordsCat= _kwc[1];
+  var _kwdbg = useState("");    var kwDebug = _kwdbg[0];     var setKwDebug = _kwdbg[1];
 
   /* ── L1 state ── */
   var _qi  = useState(0);        var qi      = _qi[0];  var setQi      = _qi[1];
@@ -691,6 +693,7 @@ function Game(p){
   var _l2f = useState(null);     var l2fb   = _l2f[0]; var setL2Fb   = _l2f[1];
   var _l2s = useState(0);        var l2score= _l2s[0]; var setL2Score= _l2s[1];
   var _l2a = useState([]);       var l2ans  = _l2a[0]; var setL2Ans  = _l2a[1];
+  var _l2d = useState(false);    var showL2Details = _l2d[0]; var setShowL2Details = _l2d[1];
   var _l2tm= useState(TMAX_L23); var l2timer= _l2tm[0];var setL2Timer= _l2tm[1];
   var l2tref=useRef(null);       var l2tval =useRef(TMAX_L23);
   var l2InputRef=useRef(null);
@@ -700,6 +703,7 @@ function Game(p){
   var _l3l = useState(false);    var l3listen=_l3l[0]; var setL3Listen=_l3l[1];
   var _l3f = useState(null);     var l3fb   = _l3f[0]; var setL3Fb   = _l3f[1];
   var _l3r = useState([]);       var l3res  = _l3r[0]; var setL3Res  = _l3r[1];
+  var _l3d = useState(false);    var showL3Details = _l3d[0]; var setShowL3Details = _l3d[1];
   var _l3sup=useState(true);     var l3sup  = _l3sup[0];var setL3Sup = _l3sup[1];
   var _l3tm= useState(TMAX_L23); var l3timer= _l3tm[0];var setL3Timer= _l3tm[1];
   var _l3wc= useState(false);   var l3WaitContinue=_l3wc[0];var setL3WaitContinue=_l3wc[1];
@@ -737,7 +741,10 @@ function Game(p){
   var screenR=useRef(screen);
   screenR.current=screen;
 
-  var wallComplete=isAllWordWallComplete(wordProg,lang);
+  var effectiveCats = WORD_PAIRS_DATA.concat(knownWordsCat ? [knownWordsCat] : []);
+  var effectiveCatsRef = useRef(effectiveCats);
+  effectiveCatsRef.current = effectiveCats;
+  var wallComplete=isAllWordWallComplete(wordProg,lang,effectiveCats);
 
   useEffect(function(){
     demoAsProgRef.current=demoAsProg||{};
@@ -776,107 +783,71 @@ function Game(p){
     return {remaining:remaining,total:(allRows||[]).length,batch:batch,queue:q};
   }
 
-  var demoFabHandlerRef=useRef(function(){});
-  demoFabHandlerRef.current=function(){
-    setAsDemo(true);
-    function normalizeSnap(rows){
-      var mock=getAssessmentDemoWords(lang);
-      var raw=rows&&rows.length?rows:mock;
-      var snap=[];
-      for(var i=0;i<raw.length;i++){
-        var r=raw[i];
-        snap.push({prompt:String(r.prompt!=null?r.prompt:"").trim(),target:String(r.target!=null?r.target:"").trim()});
-      }
-      snap=snap.filter(function(x){return x.prompt&&x.target;});
-      if(!snap.length)snap=mock.map(function(m){return {prompt:m.prompt,target:m.target};});
-      return snap;
-    }
-    function afterBankReady(rows){
-      var hasLive=!!(rows&&rows.length);
-      setAsDemoLiveList(hasLive);
-      var snap=normalizeSnap(rows||[]);
-      var norm=normalizeAssessmentRows(snap);
-      setDemoBankSnapshot(norm);
-      setDemoAsProg({});
-      var built=buildAssessmentBatch(norm, {}, true);
-      if(!built.queue.length){setScreen("assessmentEmpty");return;}
-      setAsRows(norm);
-      setAsBatch(built.batch);
-      setAsMeta({total:built.total,done:built.total-built.remaining.length});
-      setSessW(built.queue);
-      setQi(0);tval.current=TMAX;setTimer(TMAX);
-      setScore(0);setFb(null);setSel(null);setBest(0);setLpts(0);setCorrList([]);
-      setL2Qi(0); setL2Inp(""); setL2Fb(null); setL2Score(0); setL2Ans([]);
-      setL2Timer(TMAX_L23); l2tval.current=TMAX_L23;
-      setL3Qi(0); setL3Listen(false); setL3Fb(null); setL3Res([]);
-      setL3Timer(TMAX_L23);
-      l3PendingNewResRef.current=null;l3WaitContRef.current=false;setL3WaitContinue(false);
-      setScreen("asPlaying");
-    }
-    if(user&&user.email&&window.fbGetAssessmentKnownWordsForUser){
-      setAsDemoLiveList(false);
-      setScreen("assessmentLoading");
-      window.fbGetAssessmentKnownWordsForUser(user.email,lang).then(function(rows){
-        afterBankReady(rows||[]);
-      }).catch(function(e){
-        console.error(e);
-        afterBankReady([]);
-      });
-    } else {
-      afterBankReady([]);
-    }
-  };
-  var showAssessmentDemoFab=screen!=="assessmentPlay"&&screen!=="assessmentEnd"&&screen!=="assessmentLoading"&&screen!=="demoMcPlay"&&screen!=="demoMcPaused"&&screen!=="demoMcEnd"&&screen!=="asPlaying"&&screen!=="asPaused"&&screen!=="asL2play"&&screen!=="asL2end"&&screen!=="asL3play"&&screen!=="asL3paused"&&screen!=="asL3end"&&screen!=="asWallCrumble"&&screen!=="asBatchEnd"&&screen!=="asAllDone";
-  var assessmentDemoFabEl=showAssessmentDemoFab&&typeof document!=="undefined"?createPortal(
-    <button
-      type="button"
-      onClick={function(){demoFabHandlerRef.current();}}
-      aria-label={g.assessDemoFab}
-      title={g.assessDemoFab}
-      style={{
-        position:"fixed",
-        bottom:"max(20px, env(safe-area-inset-bottom, 0px))",
-        right:"max(20px, env(safe-area-inset-right, 0px))",
-        zIndex:2147483647,
-        fontFamily:QF,
-        fontSize:"12px",
-        fontWeight:"700",
-        letterSpacing:".1em",
-        textTransform:"uppercase",
-        padding:"12px 22px",
-        borderRadius:"50px",
-        border:"2px solid #0f766e",
-        background:"linear-gradient(180deg,#14b8a6 0%,#0d9488 100%)",
-        color:"#fff",
-        cursor:"pointer",
-        boxShadow:"0 8px 28px rgba(13,148,136,.55), 0 0 0 1px rgba(255,255,255,.25) inset",
-        pointerEvents:"auto",
-      }}
-    >{g.assessDemoFab}</button>,
-    document.body
-  ):null;
-
   useEffect(function(){
     if(screen!=="start"||!user||!user.uid)return;
     if(!window.fbGetWordProgress)return;
     window.fbGetWordProgress(user.uid).then(function(prog){ setWordProg(prog||{}); });
-    if(window.fbGetWallIterations){
-      window.fbGetWallIterations(user.uid).then(function(n){ setIterCount(n||0); });
+    if(user.email && window.fbGetAssessmentKnownWordsForUser){
+      setKwDebug("Fetching known words for: "+user.email+"...");
+      window.fbGetAssessmentKnownWordsForUser(user.email,lang).then(function(rows){
+        var dbg=window._kwDebug||{};
+        var steps=(dbg.steps||[]).join(" → ");
+        var emails=(dbg.allDocEmails||[]).join(", ");
+        setKwDebug("Email: "+user.email+" | "+steps+(emails?" | Emails in DB: "+emails:""));
+        var norm=normalizeAssessmentRows(rows||[]);
+        if(!norm.length && rows && rows.length){
+          norm = rows.filter(function(r){ return r && r.prompt && r.target; });
+        }
+        if(norm.length){
+          var pairs=norm.map(function(r,i){
+            var kwid="kw_"+i+"_"+r.target.toLowerCase().replace(/[^a-z0-9]/g,"_");
+            return lang==="ES"
+              ? {esWord:r.prompt,enWord:r.target,esId:kwid,enId:kwid}
+              : {enWord:r.prompt,esWord:r.target,enId:kwid,esId:kwid};
+          });
+          setKnownWordsCat({id:"knownWords",brickStart:30,nameES:"PALABRAS CONOCIDAS",nameEN:"KNOWN WORDS",pairs:pairs});
+          setKwDebug("✅ "+pairs.length+" known words loaded! | "+steps);
+        } else {
+          setKwDebug("⚠️ 0 pairs extracted | "+steps+(emails?" | DB emails: "+emails:""));
+          setKnownWordsCat(null);
+        }
+      }).catch(function(err){
+        setKwDebug("❌ Error: "+String(err)+" | "+(window._kwDebug||{}).steps);
+        setKnownWordsCat(null);
+      });
+    } else {
+      setKwDebug("⚠️ No email or fbGetAssessmentKnownWordsForUser not available");
     }
   }, [screen, user]);
 
   useEffect(function(){
     if(screen!=="l3end")return;
-    var isLastCat = catIdx >= WORD_PAIRS_DATA.length - 1;
-    if(!isLastCat)return;
-    if(iterCount < REQUIRED_ITERATIONS)return;
-    if(!user||!user.email)return;
-    var t=setTimeout(function(){ startAssessment(); },1500);
-    return function(){clearTimeout(t);};
-  },[screen, iterCount, catIdx]);
+    if(!sessW.length)return;
+    var completedIds=[];
+    for(var i=0;i<sessW.length;i++){
+      var wid=String(sessW[i].targetId);
+      var l1ok=corrList.indexOf(sessW[i].targetId)!==-1;
+      var l2ok=l2ans[i]&&l2ans[i].correct;
+      var l3ok=l3res[i]&&l3res[i].correct;
+      if(l1ok&&l2ok&&l3ok) completedIds.push({id:wid,word:sessW[i].targetWord});
+    }
+    if(completedIds.length && user && user.uid && window.fbSaveWordProgress){
+      var updProg=Object.assign({},wordProg);
+      completedIds.forEach(function(w){
+        window.fbSaveWordProgress(user.uid,w.id,w.word,(updProg[w.id]||{}).timesDone||3,true);
+        updProg[w.id]=Object.assign({},updProg[w.id]||{},{completed:true});
+      });
+      setWordProg(updProg);
+    }
+  },[screen]);
+
+  useEffect(function(){
+    if(screen==="l2end") setShowL2Details(false);
+    if(screen==="l3end") setShowL3Details(false);
+  },[screen]);
 
   function startAssessment(){
-    if((!wallComplete&&iterCount<REQUIRED_ITERATIONS)||!user||!user.email){setScreen("start");return;}
+    if(!user||!user.email){setScreen("start");return;}
     setAsDemo(false);
     setAsDemoLiveList(false);
     setScreen("assessmentLoading");
@@ -935,15 +906,14 @@ function Game(p){
        wordProg solo se usa para calcular el timesDone acumulado (para Firestore),
        no para mostrar ladrillos previos. */
     var hits = sessionCorrects || [];
-    var cat = WORD_PAIRS_DATA[ci];
+    var cat = (effectiveCatsRef.current[ci]) || WORD_PAIRS_DATA[ci];
+    if(!cat) return [];
     return cat.pairs.map(function(pair){
       var id   = tId(pair);
       var p2   = prog[String(id)] || {timesDone:0};
       var wd   = targetWord(pair);
       var done = p2.timesDone || 0;
-      /* ¿Respondió correctamente en esta sesión? → mostrar ladrillo con palabra */
       if(hits.indexOf(id) !== -1) return { timesDone: Math.max(done, 1), word: wd };
-      /* No acertado aún en esta sesión → ladrillo vacío, sin palabra */
       return { timesDone: 0, word: "" };
     });
   }
@@ -967,7 +937,8 @@ function Game(p){
   }
 
   function getCatBrickDataCumulative(ci, prog){
-    var cat = WORD_PAIRS_DATA[ci];
+    var cat = effectiveCatsRef.current[ci] || WORD_PAIRS_DATA[ci];
+    if(!cat) return [];
     return cat.pairs.map(function(pair){
       var id = tId(pair);
       var p2 = (prog||{})[String(id)] || {timesDone:0};
@@ -976,7 +947,8 @@ function Game(p){
   }
 
   function getBrickIdxInCatById(ci, targetId){
-    var cat = WORD_PAIRS_DATA[ci];
+    var cat = effectiveCatsRef.current[ci] || WORD_PAIRS_DATA[ci];
+    if(!cat) return 0;
     for(var i=0;i<cat.pairs.length;i++){
       if(String(tId(cat.pairs[i]))===String(targetId)) return i;
     }
@@ -1034,7 +1006,7 @@ function Game(p){
   useEffect(function(){
     if(!loadTrig) return;
     var ci  = loadTrig.ci;
-    var cat = WORD_PAIRS_DATA[ci];
+    var cat = effectiveCatsRef.current[ci];
 
     var getProg = (user && window.fbGetWordProgress)
       ? window.fbGetWordProgress(user.uid)
@@ -1046,8 +1018,7 @@ function Game(p){
         setWordProg(finalProg);
         setCatIdx(ci);
 
-        var forceAll = iterCountRef.current < REQUIRED_ITERATIONS;
-        var queue = buildSessionQueue(cat, finalProg, lang, forceAll);
+        var queue = buildSessionQueue(cat, finalProg, lang);
 
         if(!queue.length){
           setScreen("catComplete");
@@ -1292,7 +1263,7 @@ function Game(p){
           if(!asDemo&&window.fbSaveResult)window.fbSaveResult({userId:user?user.uid:"guest",userEmail:user?user.email:"",language:lang,level:"assessment",category:"assessment",level2Score:fc2,totalQuestions:sessW.length,source:"VocabularyBuilder/Assessment/Users"});
           setScreen("asL2end");
         } else {
-          if(window.fbSaveResult)window.fbSaveResult({userId:user?user.uid:"guest",userEmail:user?user.email:"",language:lang,category:WORD_PAIRS_DATA[catIdx].id,level:2,writingScore:fc2,totalQuestions:sessW.length});
+          if(window.fbSaveResult)window.fbSaveResult({userId:user?user.uid:"guest",userEmail:user?user.email:"",language:lang,category:(effectiveCats[catIdx]||{}).id||"unknown",level:2,writingScore:fc2,totalQuestions:sessW.length});
           setScreen("l2end");
         }
       } else {setL2Qi(nx);setL2Inp("");setL2Fb(null);}
@@ -1549,17 +1520,8 @@ function Game(p){
           }
         }
       } else {
-        if(window.fbSaveResult)window.fbSaveResult({userId:user?user.uid:"guest",userEmail:user?user.email:"",language:lang,category:WORD_PAIRS_DATA[catIdx].id,level:3,pronunciationScore:fc3,avgPhoneticScore:avgS,totalQuestions:sessW.length});
+        if(window.fbSaveResult)window.fbSaveResult({userId:user?user.uid:"guest",userEmail:user?user.email:"",language:lang,category:(effectiveCats[catIdx]||{}).id||"unknown",level:3,pronunciationScore:fc3,avgPhoneticScore:avgS,totalQuestions:sessW.length});
         if(weaknesses.length&&user&&user.uid&&window.fbSavePhonemeProblem)window.fbSavePhonemeProblem(user.uid,user.email||"",weaknesses);
-        var isLastCat = catIdx >= WORD_PAIRS_DATA.length - 1;
-        if(isLastCat){
-          var newIter = iterCountRef.current + 1;
-          setIterCount(newIter);
-          iterCountRef.current = newIter;
-          if(user && user.uid && window.fbSaveWallIterations){
-            window.fbSaveWallIterations(user.uid, newIter);
-          }
-        }
         setScreen("l3end");
       }
       return;
@@ -1741,7 +1703,7 @@ function Game(p){
   }
 
   /* ════════════ SHARED SUB-COMPONENTS ════════════ */
-  function getCat(){ return WORD_PAIRS_DATA[catIdx]; }
+  function getCat(){ return effectiveCats[catIdx] || WORD_PAIRS_DATA[0]; }
   function getCatName(){ var c=getCat(); return learnLang==="ES"?c.nameES:c.nameEN; }
 
   function GameHeader(hp){
@@ -1777,7 +1739,6 @@ function Game(p){
       <RoundBtn onClick={startAssessment} filled style={{fontSize:"14px",padding:"12px 32px"}}>{g.assessRetry}</RoundBtn>
       <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"13px",padding:"10px 24px"}}>{g.backStart}</RoundBtn>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
   if(screen==="assessmentEmpty")return(
@@ -1787,7 +1748,6 @@ function Game(p){
       <div style={{fontFamily:QF,fontSize:"15px",color:"#555",maxWidth:"400px",lineHeight:"1.6"}}>{g.assessEmpty}</div>
       <RoundBtn onClick={function(){setScreen("start");}} filled style={{fontSize:"14px",padding:"12px 32px"}}>{g.backStart}</RoundBtn>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
   if(screen==="asWallCrumble"){
@@ -1800,7 +1760,6 @@ function Game(p){
           {crumbleBrickData?<WallCrumble brickData={crumbleBrickData}/>:null}
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -1815,7 +1774,6 @@ function Game(p){
       </div>
       <RoundBtn onClick={function(){setAsDemo(false);setAsDemoLiveList(false);setScreen("start");}} filled style={{fontSize:"14px",padding:"12px 32px"}}>{g.backStart}</RoundBtn>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
 
@@ -1833,7 +1791,6 @@ function Game(p){
           <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"13px",padding:"14px 16px"}}>←</RoundBtn>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -1910,7 +1867,6 @@ function Game(p){
           </div>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -1963,7 +1919,6 @@ function Game(p){
           </div>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -1983,7 +1938,6 @@ function Game(p){
           </div>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2009,7 +1963,6 @@ function Game(p){
         <RoundBtn onClick={function(){resumeL3Exercise("asL3play");}} filled style={{fontSize:"14px",padding:"12px 36px",background:"#0d9488",borderColor:"#0d9488"}}>{"▶ "+g.resumeTxt}</RoundBtn>
       </div>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
 
@@ -2022,7 +1975,6 @@ function Game(p){
         <div style={{fontFamily:QF,fontSize:"14px",color:"#555",lineHeight:"1.6"}}>{g.l3noSupport}</div>
         <RoundBtn onClick={function(){setScreen("start");}} filled style={{fontSize:"13px",padding:"12px 32px"}}>{g.backStart}</RoundBtn>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
     var cur3=sessW[l3qi]||{promptWord:"",targetWord:""};
@@ -2073,7 +2025,6 @@ function Game(p){
           </div>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2118,7 +2069,6 @@ function Game(p){
           </div>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2150,7 +2100,6 @@ function Game(p){
           ):null}
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2179,7 +2128,6 @@ function Game(p){
           <RoundBtn onClick={function(){setAsDemo(false);setAsDemoLiveList(false);setScreen("start");}} filled style={{fontSize:"14px",padding:"14px 28px"}}>{g.assessBack}</RoundBtn>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2191,7 +2139,6 @@ function Game(p){
       <div className="spinner"></div>
       <div style={{fontFamily:QF,fontSize:"14px",color:"#888",letterSpacing:".06em"}}>{g.loadingTxt}</div>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
 
@@ -2204,13 +2151,12 @@ function Game(p){
       <RoundBtn onClick={function(){startCat(catIdx);}} filled style={{fontSize:"14px",padding:"12px 32px"}}>{g.loadRetry}</RoundBtn>
       <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"13px",padding:"10px 24px"}}>{g.backStart}</RoundBtn>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
 
   /* ── CATEGORY COMPLETE ── */
   if(screen==="catComplete"){
-    var hasNext = catIdx+1 < WORD_PAIRS_DATA.length;
+    var hasNext = catIdx+1 < effectiveCats.length;
     var allBD   = getAllBrickData(wordProg);
     return(
       <>
@@ -2222,19 +2168,15 @@ function Game(p){
         <div style={{fontFamily:QF,fontSize:"13px",color:"#555",maxWidth:"360px",lineHeight:"1.6"}}>{g.catDoneSub}</div>
         <div style={{marginTop:"8px",display:"flex",gap:"10px",flexWrap:"wrap",justifyContent:"center"}}>
           {hasNext?(
-            <RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{fontSize:"14px",padding:"14px 32px"}}>{"▶ "+g.catDoneNext}</RoundBtn>
-          ):iterCount<REQUIRED_ITERATIONS?(
-            <RoundBtn onClick={function(){startCat(0);}} filled style={{fontSize:"14px",padding:"14px 32px"}}>{lang==="EN"?"▶ START ITERATION "+iterCount+"/"+REQUIRED_ITERATIONS:"▶ INICIAR ITERACIÓN "+iterCount+"/"+REQUIRED_ITERATIONS}</RoundBtn>
-          ):user&&user.email?(
-            <RoundBtn onClick={startAssessment} filled style={{fontSize:"14px",padding:"14px 24px",background:"#0d9488",borderColor:"#0d9488"}}>{g.assessCTA}</RoundBtn>
-          ):null}
+            <RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{fontSize:"14px",padding:"14px 32px"}}>{"▶ "+g.catDoneNext+" "+(lang==="ES"?effectiveCats[catIdx+1].nameES:effectiveCats[catIdx+1].nameEN)}</RoundBtn>
+          ):(
+            <RoundBtn onClick={function(){setScreen("start");}} filled style={{fontSize:"14px",padding:"14px 32px"}}>{lang==="EN"?"🏆 ALL CATEGORIES COMPLETE!":"🏆 ¡TODAS LAS CATEGORÍAS COMPLETAS!"}</RoundBtn>
+          )}
         </div>
-        <div style={{marginTop:"4px"}}><span style={{fontFamily:QF,fontSize:"10px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{lang==="EN"?"ITERATIONS: ":"ITERACIONES: "}{Math.min(iterCount,REQUIRED_ITERATIONS)+"/"+REQUIRED_ITERATIONS}</span></div>
         <button onClick={function(){setShowFW(true);}} style={{marginTop:"8px",padding:"10px 24px",borderRadius:"50px",border:"2px solid #e8e8e8",background:"#fff",cursor:"pointer",fontFamily:QF,fontSize:"12px",fontWeight:"700",color:"#555"}}>
           🧱 {lang==="EN"?"SEE FULL WALL":"VER PARED COMPLETA"} ({allBD.filter(function(d){return d&&d.timesDone>=3;}).length+"/30"})
         </button>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2258,25 +2200,18 @@ function Game(p){
           {g.info.map(function(it){return(<div key={it[1]} style={{display:"flex",alignItems:"flex-start",gap:"14px"}}><span style={{fontSize:"22px",lineHeight:"1",flexShrink:0}}>{it[0]}</span><span style={{fontFamily:QF,fontSize:"13px",color:"#333",lineHeight:"1.5"}}>{it[1]}</span></div>);})}
           <div style={{marginTop:"6px",padding:"10px 14px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
             <div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"6px"}}>CATEGORÍAS</div>
-            {WORD_PAIRS_DATA.map(function(c,ci){var colors=["#e8633a","#7c3aed","#0891b2"];return(<div key={ci} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:colors[ci],flexShrink:0}}></div><span style={{fontFamily:QF,fontSize:"11px",color:"#555"}}>{learnLang==="ES"?c.nameES:c.nameEN}</span></div>);})}
+            {effectiveCats.map(function(c,ci){var colors=["#e8633a","#7c3aed","#0891b2","#0d9488"];var catDone=c.pairs.every(function(p){var id=String(lang==="ES"?p.enId:p.esId);return!!(wordProg[id]||{}).completed;});return(<div key={ci} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:catDone?"#16a34a":colors[ci%colors.length],flexShrink:0}}></div><span style={{fontFamily:QF,fontSize:"11px",color:catDone?"#16a34a":"#555"}}>{learnLang==="ES"?c.nameES:c.nameEN}{catDone?" ✓":""}</span></div>);})}
           </div>
         </div>
       </div>
-      {(wallComplete||iterCount>=REQUIRED_ITERATIONS)&&user&&user.email?(
-        <div style={{width:"100%",maxWidth:"520px",marginBottom:"16px",padding:"16px 20px",borderRadius:"16px",border:"2px solid #0d9488",background:"#f0fdfa",textAlign:"center"}}>
-          <div style={{fontFamily:QF,fontSize:"12px",fontWeight:"700",letterSpacing:".08em",color:"#0f766e",marginBottom:"8px",textTransform:"uppercase"}}>{g.assessBadge}</div>
-          <div style={{fontFamily:QF,fontSize:"13px",color:"#334155",lineHeight:"1.5",marginBottom:"12px"}}>{g.assessIntro}</div>
-          <RoundBtn onClick={startAssessment} filled style={{fontSize:"14px",padding:"12px 28px",background:"#0d9488",borderColor:"#0d9488"}}>{g.assessCTA}</RoundBtn>
+      {wallComplete?(
+        <div style={{width:"100%",maxWidth:"520px",marginBottom:"16px",padding:"16px 20px",borderRadius:"16px",border:"2px solid #16a34a",background:"#f0faf4",textAlign:"center"}}>
+          <div style={{fontSize:"36px",marginBottom:"8px"}}>🏆</div>
+          <div style={{fontFamily:QF,fontSize:"14px",fontWeight:"700",letterSpacing:".08em",color:"#16a34a",textTransform:"uppercase"}}>{lang==="EN"?"ALL WORDS COMPLETED!":"¡TODAS LAS PALABRAS COMPLETADAS!"}</div>
         </div>
       ):null}
-      {iterCount>0?(
-        <div style={{marginBottom:"12px",textAlign:"center"}}>
-          <span style={{fontFamily:QF,fontSize:"11px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{lang==="EN"?"ITERATIONS COMPLETED: ":"ITERACIONES COMPLETADAS: "}{Math.min(iterCount,REQUIRED_ITERATIONS)+"/"+REQUIRED_ITERATIONS}</span>
-        </div>
-      ):null}
-      <RoundBtn onClick={function(){startCat(0);}} filled style={{fontSize:"16px",padding:"15px 64px",letterSpacing:".12em"}}>{"▶ "+g.start}</RoundBtn>
+      <RoundBtn onClick={function(){var ci=0;for(var i=0;i<effectiveCats.length;i++){var c=effectiveCats[i];var hasPending=c.pairs.some(function(p){var id=String(lang==="ES"?p.enId:p.esId);return!(wordProg[id]||{}).completed;});if(hasPending){ci=i;break;}}startCat(ci);}} filled style={{fontSize:"16px",padding:"15px 64px",letterSpacing:".12em"}}>{"▶ "+(wallComplete?(lang==="EN"?"PLAY AGAIN":"JUGAR DE NUEVO"):g.start)}</RoundBtn>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
 
@@ -2325,7 +2260,6 @@ function Game(p){
           </div>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2346,7 +2280,7 @@ function Game(p){
   if(screen==="l2play"){
     if(!sessW.length)return null;
     var cur2=sessW[l2qi]||{promptWord:"",targetWord:""};
-    var catForL2=WORD_PAIRS_DATA[catIdx];
+    var catForL2=effectiveCats[catIdx]||WORD_PAIRS_DATA[0];
     var catWall2=brickDataHideLabelsUnlessL2Correct(
       pad10(getCatBrickDataCumulative(catIdx,wordProg)),
       l2RevealedNormKeys(l2ans),
@@ -2414,13 +2348,18 @@ function Game(p){
             <div style={{fontFamily:QF,fontSize:"14px",color:"#555",marginTop:"4px"}}>{"/ "+sessW.length+" — "+Math.round(l2pct)+"%"}</div>
             <div style={{fontFamily:QF,fontSize:"11px",color:"#aaa",letterSpacing:".1em",marginTop:"4px",textTransform:"uppercase"}}>{g.l2scoreLbl}</div>
           </div>
-          <div style={{marginBottom:"20px"}}>
-            <p style={{fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"10px",color:"#777"}}>{g.l2detailTitle}</p>
-            {l2ans.map(function(a,i){return(<div key={i} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 14px",marginBottom:"6px",borderRadius:"12px",background:a.correct?"#f0faf4":"#fff8f8",border:"1px solid "+(a.correct?"#b3dfc4":"#fca5a5")}}><span style={{fontSize:"18px",flexShrink:0}}>{a.correct?"✅":"❌"}</span><div style={{flex:1,minWidth:0}}><div style={{fontFamily:QF,fontSize:"13px",fontWeight:"700",color:"#333"}}>{a.promptWord}</div><div style={{display:"flex",gap:"16px",flexWrap:"wrap",marginTop:"2px"}}><span style={{fontFamily:QF,fontSize:"11px",color:"#aaa"}}>{g.l2typed+" "}<strong style={{color:a.correct?"#16a34a":"#dc2626"}}>{a.typed||"—"}</strong></span>{!a.correct?(<span style={{fontFamily:QF,fontSize:"11px",color:"#aaa"}}>{g.l2expected+" "}<strong style={{color:"#16a34a"}}>{a.expected}</strong></span>):null}</div></div></div>);})}
-          </div>
           <div style={{display:"flex",gap:"10px"}}>
             <RoundBtn onClick={startL3} filled style={{flex:1,fontSize:"14px",padding:"14px 20px",letterSpacing:".06em"}}>{"🎤 "+g.l2goL3}</RoundBtn>
           </div>
+          <button type="button" onClick={function(){setShowL2Details(!showL2Details);}} style={{width:"100%",marginTop:"10px",padding:"10px 16px",borderRadius:"50px",border:"1px solid #dbe3ff",background:"#f8faff",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em",color:"#4f46e5"}}>
+            {showL2Details?(lang==="EN"?"HIDE DETAILS ▲":"OCULTAR DETALLE ▲"):(lang==="EN"?"SHOW DETAILS ▼":"VER DETALLE ▼")}
+          </button>
+          {showL2Details?(
+            <div style={{marginTop:"10px",marginBottom:"20px"}}>
+              <p style={{fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"10px",color:"#777"}}>{g.l2detailTitle}</p>
+              {l2ans.map(function(a,i){return(<div key={i} style={{display:"flex",alignItems:"center",gap:"12px",padding:"10px 14px",marginBottom:"6px",borderRadius:"12px",background:a.correct?"#f0faf4":"#fff8f8",border:"1px solid "+(a.correct?"#b3dfc4":"#fca5a5")}}><span style={{fontSize:"18px",flexShrink:0}}>{a.correct?"✅":"❌"}</span><div style={{flex:1,minWidth:0}}><div style={{fontFamily:QF,fontSize:"13px",fontWeight:"700",color:"#333"}}>{a.promptWord}</div><div style={{display:"flex",gap:"16px",flexWrap:"wrap",marginTop:"2px"}}><span style={{fontFamily:QF,fontSize:"11px",color:"#aaa"}}>{g.l2typed+" "}<strong style={{color:a.correct?"#16a34a":"#dc2626"}}>{a.typed||"—"}</strong></span>{!a.correct?(<span style={{fontFamily:QF,fontSize:"11px",color:"#aaa"}}>{g.l2expected+" "}<strong style={{color:"#16a34a"}}>{a.expected}</strong></span>):null}</div></div></div>);})}
+            </div>
+          ):null}
         </div>
       </div>
     );
@@ -2515,7 +2454,7 @@ function Game(p){
     var l3pct=(l3c/sessW.length)*100;
     var avgPhS=Math.round(l3res.reduce(function(s,r){return s+(r.analysis?r.analysis.overall:0);},0)/Math.max(l3res.length,1));
     var mainColor=l3pct>=80?"#16a34a":l3pct>=60?"#d97706":"#dc2626";
-    var hasNext2=catIdx+1<WORD_PAIRS_DATA.length;
+    var hasNext2=catIdx+1<effectiveCats.length;
     var allBD2=getAllBrickData(wordProg);
     return(
       <>
@@ -2540,7 +2479,17 @@ function Game(p){
             </div>
           </div>
           <p style={{fontFamily:QF,fontSize:"12px",color:"#888",marginBottom:"12px",textAlign:"center"}}>{g.l3endSub}</p>
-          {l3res.map(function(r,i){
+          <div style={{display:"flex",gap:"10px",marginTop:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
+            {hasNext2?(
+              <RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{"▶ "+g.nextCatTxt+" "+(lang==="ES"?effectiveCats[catIdx+1].nameES:effectiveCats[catIdx+1].nameEN)}</RoundBtn>
+            ):(
+              <RoundBtn onClick={function(){setScreen("start");}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{lang==="EN"?"🏆 FINISHED — BACK TO START":"🏆 FINALIZADO — VOLVER AL INICIO"}</RoundBtn>
+            )}
+          </div>
+          <button type="button" onClick={function(){setShowL3Details(!showL3Details);}} style={{width:"100%",marginBottom:"10px",padding:"10px 16px",borderRadius:"50px",border:"1px solid #e9d5ff",background:"#faf5ff",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em",color:"#7c3aed"}}>
+            {showL3Details?(lang==="EN"?"HIDE DETAILS ▲":"OCULTAR DETALLE ▲"):(lang==="EN"?"SHOW DETAILS ▼":"VER DETALLE ▼")}
+          </button>
+          {showL3Details?l3res.map(function(r,i){
             var rs=r.analysis?r.analysis.overall:0;var rc=scoreColor(rs);
             return(<div key={i} style={{marginBottom:"12px",padding:"14px 16px",borderRadius:"16px",border:"2px solid "+(r.correct?"#bbf7d0":"#fca5a5"),background:r.correct?"#f0fdf4":"#fff8f8"}}>
               <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}>
@@ -2557,29 +2506,13 @@ function Game(p){
               </div>
               {r.analysis&&r.analysis.errors.length>0?(<div style={{marginTop:"10px"}}><span style={{fontFamily:QF,fontSize:"9px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase",color:"#aaa",display:"block",marginBottom:"5px"}}>{g.l3errorsLbl}</span>{r.analysis.errors.slice(0,2).map(function(e,ei){var bc=e.severity==="grave"?"#dc2626":e.severity==="moderado"?"#ea580c":"#d97706";return(<div key={ei} className="ph-err-row" style={{borderLeftColor:bc}}><span className="ph-err-sev" style={{color:bc}}>{e.severity}</span><span>{e.text}</span></div>);})}</div>):(<div style={{marginTop:"8px",fontFamily:QF,fontSize:"11px",color:"#16a34a"}}>{g.l3noErrors}</div>)}
             </div>);
-          })}
-          <div style={{display:"flex",gap:"10px",marginTop:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
-            {hasNext2?(
-              <RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{"▶ "+g.nextCatTxt+" "+(lang==="ES"?WORD_PAIRS_DATA[catIdx+1].nameES:WORD_PAIRS_DATA[catIdx+1].nameEN)}</RoundBtn>
-            ):iterCount<REQUIRED_ITERATIONS?(
-              <RoundBtn onClick={function(){startCat(0);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{lang==="EN"?"▶ START ITERATION "+iterCount+"/"+REQUIRED_ITERATIONS:"▶ INICIAR ITERACIÓN "+iterCount+"/"+REQUIRED_ITERATIONS}</RoundBtn>
-            ):user&&user.email?(
-              <div style={{flex:1,textAlign:"center",padding:"14px 16px",borderRadius:"50px",background:"#f0fdfa",border:"2px solid #0d9488"}}>
-                <div className="spinner" style={{width:"20px",height:"20px",borderTopColor:"#0d9488",margin:"0 auto 6px"}}></div>
-                <span style={{fontFamily:QF,fontSize:"12px",fontWeight:"700",color:"#0d9488",letterSpacing:".06em"}}>{lang==="EN"?"LOADING KNOWN WORDS...":"CARGANDO PALABRAS CONOCIDAS..."}</span>
-              </div>
-            ):null}
-          </div>
-          <div style={{textAlign:"center",marginBottom:"8px"}}>
-            <span style={{fontFamily:QF,fontSize:"10px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{lang==="EN"?"ITERATIONS: ":"ITERACIONES: "}{Math.min(iterCount,REQUIRED_ITERATIONS)+"/"+REQUIRED_ITERATIONS}{iterCount>=REQUIRED_ITERATIONS?(lang==="EN"?" — ASSESSMENT UNLOCKED!":" — ¡EVALUACIÓN DESBLOQUEADA!"):""}</span>
-          </div>
+          }):null}
           <button onClick={function(){setShowFW(true);}} style={{width:"100%",marginBottom:"24px",padding:"12px 20px",borderRadius:"50px",border:"2px solid #e8e8e8",background:"#fff",cursor:"pointer",fontFamily:QF,fontSize:"13px",fontWeight:"700",letterSpacing:".06em",color:"#555",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",transition:"all .15s"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#000";e.currentTarget.style.color="#000";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#e8e8e8";e.currentTarget.style.color="#555";}}>
             🧱 {lang==="EN"?"SEE FULL WALL":"VER PARED COMPLETA"}
             <span style={{fontSize:"10px",color:"#aaa",fontWeight:"400"}}>{"("+allBD2.filter(function(d){return d&&d.timesDone>=3;}).length+"/30)"}</span>
           </button>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2619,7 +2552,6 @@ function Game(p){
         }} filled style={{fontSize:"14px",padding:"14px 28px",background:"#0d9488",borderColor:"#0d9488",letterSpacing:".04em"}}>{lang==="EN"?"CONTINUE":"CONTINUAR"}</RoundBtn>
         <RoundBtn onClick={function(){setScreen("start");}} style={{fontSize:"13px",padding:"12px 24px"}}>{g.backStart}</RoundBtn>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2697,7 +2629,6 @@ function Game(p){
           </div>
         </div>
       </div>
-      {assessmentDemoFabEl}
       </>
     );
   }
@@ -2817,7 +2748,6 @@ function Game(p){
         </div>
       </div>
     </div>
-    {assessmentDemoFabEl}
     </>
   );
 }
