@@ -274,6 +274,30 @@ function buildSessionQueue(cat, wordProgress, gameLang){
   });
 }
 
+/** Every word in the category has completed:true in wordProgress. */
+function isCategoryFullyComplete(cat, wordProgress, gameLang){
+  if(!cat||!cat.pairs||!cat.pairs.length)return false;
+  for(var pi=0;pi<cat.pairs.length;pi++){
+    var pair=cat.pairs[pi];
+    var id=String(gameLang==="ES"?pair.enId:pair.esId);
+    if(!(wordProgress[id]||{}).completed)return false;
+  }
+  return true;
+}
+
+/** This session: L1 hit, L2 correct, L3 correct for every word in sessW. */
+function isSessionTriplePerfect(corrList, l2ans, l3res, sessW){
+  if(!sessW||!sessW.length)return false;
+  for(var i=0;i<sessW.length;i++){
+    var tid=sessW[i].targetId;
+    var l1ok=corrList.indexOf(tid)!==-1;
+    var l2ok=l2ans[i]&&l2ans[i].correct;
+    var l3ok=l3res[i]&&l3res[i].correct;
+    if(!l1ok||!l2ok||!l3ok)return false;
+  }
+  return true;
+}
+
 /* ═══════════════════════════════════════════════════════════
    G — UI strings
    ═══════════════════════════════════════════════════════════ */
@@ -658,6 +682,13 @@ function Game(p){
   var g      = G[lang];
   var speechLang = lang==="ES" ? "en-US" : "es-MX";
 
+  function addUserPoints(delta){
+    if(!user||!user.uid)return;
+    var d=Number(delta);
+    if(!window.fbAddPoints||!Number.isFinite(d)||d<=0)return;
+    window.fbAddPoints(user.uid,user.email||"",d);
+  }
+
   /* ── Word helpers — read text directly from pair, use ID for DB ── */
   function targetWord(pair){ return lang==="ES" ? pair.enWord : pair.esWord; }
   function promptWord(pair) { return lang==="ES" ? pair.esWord : pair.enWord; }
@@ -719,6 +750,9 @@ function Game(p){
 
   /* ── Full wall modal ── */
   var _sfw = useState(false);    var showFW  = _sfw[0]; var setShowFW = _sfw[1];
+
+  /* ── Full-screen round blocker after perfect category completion (L1+L2+L3, all words) ── */
+  var _crb = useState(false);    var categoryRoundBlocker = _crb[0]; var setCategoryRoundBlocker = _crb[1];
 
   var _aq = useState([]);        var asQueue = _aq[0]; var setAsQueue = _aq[1];
   var _aqi= useState(0);         var asQi    = _aqi[0]; var setAsQi    = _aqi[1];
@@ -824,6 +858,7 @@ function Game(p){
     if(screen!=="l3end")return;
     if(!sessW.length)return;
     var completedIds=[];
+    var updProg=Object.assign({},wordProg);
     for(var i=0;i<sessW.length;i++){
       var wid=String(sessW[i].targetId);
       var l1ok=corrList.indexOf(sessW[i].targetId)!==-1;
@@ -831,15 +866,42 @@ function Game(p){
       var l3ok=l3res[i]&&l3res[i].correct;
       if(l1ok&&l2ok&&l3ok) completedIds.push({id:wid,word:sessW[i].targetWord});
     }
-    if(completedIds.length && user && user.uid && window.fbSaveWordProgress){
-      var updProg=Object.assign({},wordProg);
-      completedIds.forEach(function(w){
-        window.fbSaveWordProgress(user.uid,w.id,w.word,(updProg[w.id]||{}).timesDone||3,true);
-        updProg[w.id]=Object.assign({},updProg[w.id]||{},{completed:true});
-      });
+    completedIds.forEach(function(w){
+      updProg[w.id]=Object.assign({},updProg[w.id]||{},{completed:true});
+    });
+    if(completedIds.length){
+      if(user && user.uid && window.fbSaveWordProgress){
+        completedIds.forEach(function(w){
+          window.fbSaveWordProgress(user.uid,w.id,w.word,(updProg[w.id]||{}).timesDone||3,true);
+        });
+      }
       setWordProg(updProg);
     }
+    var catNow=effectiveCatsRef.current[catIdx];
+    if(
+      catNow &&
+      isCategoryFullyComplete(catNow, updProg, lang) &&
+      isSessionTriplePerfect(corrList, l2ans, l3res, sessW)
+    ){
+      setCategoryRoundBlocker(true);
+    }
   },[screen]);
+
+  useEffect(function(){
+    if(screen!=="l3end") setCategoryRoundBlocker(false);
+  },[screen]);
+
+  useEffect(function(){
+    if(!categoryRoundBlocker)return;
+    var ci=catIdx;
+    var t=window.setTimeout(function(){
+      setCategoryRoundBlocker(false);
+      var cats=effectiveCatsRef.current||[];
+      if(ci+1<cats.length) startCat(ci+1);
+      else setScreen("start");
+    },5000);
+    return function(){ window.clearTimeout(t); };
+  },[categoryRoundBlocker]);
 
   useEffect(function(){
     if(screen==="l2end") setShowL2Details(false);
@@ -884,6 +946,7 @@ function Game(p){
     var typedStr=typedOverride!=null?String(typedOverride):asInp;
     var ok=normCheck(typedStr)===normCheck(cur.target);
     if(ok)sOk();else sWrong();
+    if(ok&&!asDemo)addUserPoints(TMAX);
     var newAns=asAns.concat([{promptWord:cur.prompt,expected:cur.target,typed:typedStr.trim(),correct:ok}]);
     setAsAns(newAns);
     setAsFb({ok:ok,expected:cur.target,typed:typedStr.trim()});
@@ -1099,6 +1162,7 @@ function Game(p){
     if(ok){
       sOk();
       latestProg = handleCorrectAnswer(cur.targetId, cur.targetWord, wordProg);
+      addUserPoints(tl||0);
       setScore(function(s){return s+(tl||0);});
       setLpts(tl||0);
       setBest(function(b){return Math.max(b,tl||0);});
@@ -1175,6 +1239,7 @@ function Game(p){
     if(ok){
       sOk();
       handleCorrectAnswerAssessment(cur.targetId, cur.promptWord, cur.targetWord, asDemo?demoAsProg:asProg, !!asDemo);
+      if(!asDemo)addUserPoints(tl||0);
       setScore(function(s){return s+(tl||0);});
       setLpts(tl||0);
       setBest(function(b){return Math.max(b,tl||0);});
@@ -1239,6 +1304,7 @@ function Game(p){
   function startAsL2(){setL2Qi(0);setL2Inp("");setL2Fb(null);setL2Score(0);setL2Ans([]);setL2Timer(TMAX_L23);l2tval.current=TMAX_L23;setScreen("asL2play");}
 
   function checkL2(timeout, typedOverride){
+    var l2tl=l2tval.current;
     clrL2T();
     var cur=sessW[l2qi];
     var typedStr=typedOverride!=null?String(typedOverride):l2inp;
@@ -1254,7 +1320,10 @@ function Game(p){
     var newAns=l2ans.concat([{expected:cur.targetWord,typed:typedStr.trim(),correct:ok,timeout:!!timeout,promptWord:cur.promptWord}]);
     setL2Ans(newAns);
     setL2Fb({ok:ok,expected:cur.targetWord,typed:typedStr.trim(),timeout:!!timeout});
-    if(ok)setL2Score(function(s){return s+1;});
+    if(ok){
+      setL2Score(function(s){return s+1;});
+      if(screenR.current!=="asL2play"||!asDemo)addUserPoints(Math.max(1,l2tl|0));
+    }
     setTimeout(function(){
       var nx=l2qi+1;
       if(nx>=sessW.length){
@@ -1552,6 +1621,7 @@ function Game(p){
       } else {
         handleCorrectAnswer(cur.targetId,cur.targetWord,wordProg);
       }
+      if(screenR.current!=="asL3play"||!asDemo)addUserPoints(Math.max(1,Math.round(analysis.overall/5)));
       l3FailCountRef.current=0;
       setL3Fb({heard:fixedHeard,correct:true,diff:diff,analysis:analysis});
       var newResOk=l3res.concat([{expected:cur.targetWord,heard:fixedHeard,diff:diff,correct:true,analysis:analysis,promptWord:cur.promptWord}]);
@@ -2458,6 +2528,37 @@ function Game(p){
     var allBD2=getAllBrickData(wordProg);
     return(
       <>
+      {categoryRoundBlocker?(
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position:"fixed",
+            inset:0,
+            zIndex:999999,
+            width:"100%",
+            minHeight:"100dvh",
+            margin:0,
+            padding:"28px 20px",
+            boxSizing:"border-box",
+            background:"#0c1222",
+            color:"#f8fafc",
+            display:"flex",
+            flexDirection:"column",
+            alignItems:"center",
+            justifyContent:"center",
+            textAlign:"center",
+            touchAction:"none",
+          }}
+        >
+          <p style={{fontFamily:QF,fontSize:"clamp(17px,4.2vw,26px)",fontWeight:900,letterSpacing:".07em",lineHeight:1.45,maxWidth:"560px",margin:0}}>
+            Well done, continue with your next lesson
+          </p>
+          <p style={{fontFamily:QF,fontSize:"clamp(15px,3.8vw,22px)",fontWeight:700,letterSpacing:".05em",lineHeight:1.5,maxWidth:"560px",margin:"20px 0 0",opacity:.92}}>
+            Bien hecho, continua con tu siguiente leccion
+          </p>
+        </div>
+      ):null}
       <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",padding:"16px 20px",background:"#fff",overflowY:"auto"}}>
         {showFW?<FullWallModal allBrickData={allBD2} lang={lang} verifiedLbl={g.verifiedLbl} onClose={function(){setShowFW(false);}}/>:null}
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px",maxWidth:"720px",width:"100%",alignSelf:"center"}}>
@@ -2465,7 +2566,7 @@ function Game(p){
             <span className="lvl-badge" style={{background:"#7c3aed",color:"#fff"}}>{g.l3badge}</span>
             <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"20px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.l3endTitle}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{getCatName()}</div></div>
           </div>
-          <DashBackBtn onClick={goDashboard} label={g.exerciseBack}/>
+          {categoryRoundBlocker?null:<DashBackBtn onClick={goDashboard} label={g.exerciseBack}/>}
         </div>
         <div style={{maxWidth:"720px",width:"100%",alignSelf:"center"}}>
           <div style={{textAlign:"center",marginBottom:"16px",padding:"20px",border:"3px solid "+mainColor,borderRadius:"24px",background:l3pct>=80?"#f0faf4":l3pct>=60?"#fffbeb":"#fff8f8"}}>
@@ -2479,6 +2580,7 @@ function Game(p){
             </div>
           </div>
           <p style={{fontFamily:QF,fontSize:"12px",color:"#888",marginBottom:"12px",textAlign:"center"}}>{g.l3endSub}</p>
+          {categoryRoundBlocker?null:(
           <div style={{display:"flex",gap:"10px",marginTop:"8px",marginBottom:"8px",flexWrap:"wrap"}}>
             {hasNext2?(
               <RoundBtn onClick={function(){startCat(catIdx+1);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{"▶ "+g.nextCatTxt+" "+(lang==="ES"?effectiveCats[catIdx+1].nameES:effectiveCats[catIdx+1].nameEN)}</RoundBtn>
@@ -2486,10 +2588,13 @@ function Game(p){
               <RoundBtn onClick={function(){setScreen("start");}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{lang==="EN"?"🏆 FINISHED — BACK TO START":"🏆 FINALIZADO — VOLVER AL INICIO"}</RoundBtn>
             )}
           </div>
+          )}
+          {categoryRoundBlocker?null:(
           <button type="button" onClick={function(){setShowL3Details(!showL3Details);}} style={{width:"100%",marginBottom:"10px",padding:"10px 16px",borderRadius:"50px",border:"1px solid #e9d5ff",background:"#faf5ff",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em",color:"#7c3aed"}}>
             {showL3Details?(lang==="EN"?"HIDE DETAILS ▲":"OCULTAR DETALLE ▲"):(lang==="EN"?"SHOW DETAILS ▼":"VER DETALLE ▼")}
           </button>
-          {showL3Details?l3res.map(function(r,i){
+          )}
+          {categoryRoundBlocker?null:(showL3Details?l3res.map(function(r,i){
             var rs=r.analysis?r.analysis.overall:0;var rc=scoreColor(rs);
             return(<div key={i} style={{marginBottom:"12px",padding:"14px 16px",borderRadius:"16px",border:"2px solid "+(r.correct?"#bbf7d0":"#fca5a5"),background:r.correct?"#f0fdf4":"#fff8f8"}}>
               <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"10px"}}>
@@ -2506,11 +2611,13 @@ function Game(p){
               </div>
               {r.analysis&&r.analysis.errors.length>0?(<div style={{marginTop:"10px"}}><span style={{fontFamily:QF,fontSize:"9px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase",color:"#aaa",display:"block",marginBottom:"5px"}}>{g.l3errorsLbl}</span>{r.analysis.errors.slice(0,2).map(function(e,ei){var bc=e.severity==="grave"?"#dc2626":e.severity==="moderado"?"#ea580c":"#d97706";return(<div key={ei} className="ph-err-row" style={{borderLeftColor:bc}}><span className="ph-err-sev" style={{color:bc}}>{e.severity}</span><span>{e.text}</span></div>);})}</div>):(<div style={{marginTop:"8px",fontFamily:QF,fontSize:"11px",color:"#16a34a"}}>{g.l3noErrors}</div>)}
             </div>);
-          }):null}
+          }):null)}
+          {categoryRoundBlocker?null:(
           <button onClick={function(){setShowFW(true);}} style={{width:"100%",marginBottom:"24px",padding:"12px 20px",borderRadius:"50px",border:"2px solid #e8e8e8",background:"#fff",cursor:"pointer",fontFamily:QF,fontSize:"13px",fontWeight:"700",letterSpacing:".06em",color:"#555",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",transition:"all .15s"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#000";e.currentTarget.style.color="#000";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#e8e8e8";e.currentTarget.style.color="#555";}}>
             🧱 {lang==="EN"?"SEE FULL WALL":"VER PARED COMPLETA"}
             <span style={{fontSize:"10px",color:"#aaa",fontWeight:"400"}}>{"("+allBD2.filter(function(d){return d&&d.timesDone>=3;}).length+"/30)"}</span>
           </button>
+          )}
         </div>
       </div>
       </>

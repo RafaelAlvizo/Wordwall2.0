@@ -10,6 +10,7 @@ import {
   collection,
   updateDoc,
   arrayUnion,
+  increment,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -51,13 +52,16 @@ const app = initializeApp(firebaseConfigFromEnv());
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-/** Single doc per user: externalApps/LANGUAGE/WordWall/UserDataWall/WordWallFile/{email-current} */
-function userDocIdFromEmail(email) {
-  var em = String(email || '')
+function normEmail(s) {
+  return String(s || '')
     .trim()
     .toLowerCase();
-  if (!em) return '';
-  return em + '-current';
+}
+
+/** Single doc per user: externalApps/LANGUAGE/WordWall/UserDataWall/WordWallFile/{normalized-email} */
+function userDocIdFromEmail(email) {
+  var em = normEmail(email);
+  return em;
 }
 
 function legacyUserWallDataRef(uid) {
@@ -69,7 +73,7 @@ function userWallDataRef(userId, emailHint) {
   var resolvedEmail = emailHint || currentEmail;
   var emailDocId = userDocIdFromEmail(resolvedEmail);
   var fallbackId = String(userId || '').trim();
-  var finalId = emailDocId || (fallbackId ? fallbackId + '-current' : '');
+  var finalId = emailDocId || fallbackId;
   if (!finalId) throw new Error('Cannot resolve user document id');
   return doc(db, 'externalApps', 'LANGUAGE', 'WordWall', 'UserDataWall', 'WordWallFile', finalId);
 }
@@ -78,6 +82,25 @@ async function readUserDoc(userId, emailHint) {
   var primaryRef = userWallDataRef(userId, emailHint);
   var primarySnap = await getDoc(primaryRef);
   if (primarySnap.exists()) return { ref: primaryRef, snap: primarySnap };
+
+  var em = normEmail(emailHint || (auth.currentUser && auth.currentUser.email));
+  if (em) {
+    var legacySuffixRef = doc(
+      db,
+      'externalApps',
+      'LANGUAGE',
+      'WordWall',
+      'UserDataWall',
+      'WordWallFile',
+      em + '-current',
+    );
+    var legacySuffixSnap = await getDoc(legacySuffixRef);
+    if (legacySuffixSnap.exists()) {
+      await setDoc(primaryRef, legacySuffixSnap.data() || {}, { merge: true });
+      var migratedSuffix = await getDoc(primaryRef);
+      return { ref: primaryRef, snap: migratedSuffix };
+    }
+  }
 
   // Backward compatibility: migrate from legacy uid doc if it exists.
   if (userId) {
@@ -108,6 +131,23 @@ window.fbSaveResult = async function (data) {
   }
 };
 
+/** Cumulative points on the user doc; uses Firestore increment for safe concurrent updates. */
+window.fbAddPoints = async function (userId, userEmail, delta) {
+  try {
+    var d = Math.floor(Number(delta));
+    if (!userId || userId === 'guest' || !Number.isFinite(d) || d <= 0) return;
+    await readUserDoc(userId, userEmail);
+    var ref = userWallDataRef(userId, userEmail);
+    try {
+      await updateDoc(ref, { points: increment(d), pointsUpdatedAt: serverTimestamp() });
+    } catch (err) {
+      await setDoc(ref, { points: d, pointsUpdatedAt: serverTimestamp() }, { merge: true });
+    }
+  } catch (e) {
+    console.error('fbAddPoints', e);
+  }
+};
+
 window.fbRegister = async function (email, password, profile) {
   var c = await createUserWithEmailAndPassword(auth, email, password);
   await setDoc(
@@ -118,6 +158,7 @@ window.fbRegister = async function (email, password, profile) {
       createdAt: serverTimestamp(),
       words: {},
       sessions: [],
+      points: 0,
       weakPhonemes: [],
       phonemeWeaknessHistory: [],
     }),
@@ -237,12 +278,6 @@ window.fbGetAssessmentProgress = async function (userId) {
     return {};
   }
 };
-
-function normEmail(s) {
-  return String(s || '')
-    .trim()
-    .toLowerCase();
-}
 
 function rowsFromAssessmentDoc(d) {
   if (!d || typeof d !== 'object') return [];
