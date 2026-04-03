@@ -734,7 +734,6 @@ function Game(p){
   var _l3l = useState(false);    var l3listen=_l3l[0]; var setL3Listen=_l3l[1];
   var _l3f = useState(null);     var l3fb   = _l3f[0]; var setL3Fb   = _l3f[1];
   var _l3r = useState([]);       var l3res  = _l3r[0]; var setL3Res  = _l3r[1];
-  var _l3d = useState(false);    var showL3Details = _l3d[0]; var setShowL3Details = _l3d[1];
   var _l3sup=useState(true);     var l3sup  = _l3sup[0];var setL3Sup = _l3sup[1];
   var _l3tm= useState(TMAX_L23); var l3timer= _l3tm[0];var setL3Timer= _l3tm[1];
   var _l3wc= useState(false);   var l3WaitContinue=_l3wc[0];var setL3WaitContinue=_l3wc[1];
@@ -894,22 +893,8 @@ function Game(p){
   },[showL3EndModal]);
 
   useEffect(function(){
-    if(!categoryRoundBlocker)return;
-    var ci=catIdx;
-    var t=window.setTimeout(function(){
-      setCategoryRoundBlocker(false);
-      setShowL3EndModal(false);
-      var cats=effectiveCatsRef.current||[];
-      if(ci+1<cats.length) startCat(ci+1);
-      else setScreen("start");
-    },5000);
-    return function(){ window.clearTimeout(t); };
-  },[categoryRoundBlocker]);
-
-  useEffect(function(){
     if(screen==="l2end") setShowL2Details(false);
-    if(showL3EndModal) setShowL3Details(false);
-  },[screen, showL3EndModal]);
+  },[screen]);
 
   function startAssessment(){
     if(!user||!user.email){setScreen("start");return;}
@@ -2264,83 +2249,53 @@ function Game(p){
       var l3pctM=(l3cM/sessW.length)*100;
       var avgPhSM=Math.round(l3res.reduce(function(s,r){return s+(r.analysis?r.analysis.overall:0);},0)/Math.max(l3res.length,1));
       var mainColorM=l3pctM>=80?"#16a34a":l3pctM>=60?"#d97706":"#dc2626";
-      var hasNextM=catIdx+1<effectiveCats.length;
-      var allBD2M=getAllBrickData(wordProg);
       l3Popup=(
         <div
           role="dialog"
           aria-modal="true"
           aria-labelledby="l3-end-title"
-          style={{position:"fixed",inset:0,zIndex:1900,background:"rgba(15,23,42,.55)",display:"flex",alignItems:"center",justifyContent:"center",padding:"16px",boxSizing:"border-box",overflowY:"auto"}}
-          onClick={function(e){if(e.target===e.currentTarget&&!categoryRoundBlocker)setShowL3EndModal(false);}}
+          style={{
+            position:"fixed",
+            left:0,
+            top:0,
+            right:0,
+            bottom:0,
+            width:"100%",
+            minHeight:"100dvh",
+            margin:0,
+            zIndex:9999,
+            background:"#fff",
+            boxSizing:"border-box",
+            overflowY:"auto",
+            overflowX:"hidden",
+            WebkitOverflowScrolling:"touch",
+            display:"flex",
+            flexDirection:"column",
+            alignItems:"stretch",
+          }}
         >
-          <div
-            onClick={function(e){e.stopPropagation();}}
-            style={{width:"100%",maxWidth:"720px",maxHeight:"min(92dvh,900px)",overflowY:"auto",background:"#fff",borderRadius:"24px",boxShadow:"0 24px 80px rgba(0,0,0,.25)",padding:"16px 18px 20px",position:"relative"}}
-          >
-            {showFW?<FullWallModal allBrickData={allBD2M} lang={lang} verifiedLbl={g.verifiedLbl} onClose={function(){setShowFW(false);}}/>:null}
-            {categoryRoundBlocker?(
-              <div role="status" aria-live="polite" style={{marginBottom:"14px",padding:"12px 14px",borderRadius:"16px",background:"linear-gradient(135deg,#1e293b 0%,#0f172a 100%)",color:"#f8fafc",textAlign:"center"}}>
-                <p style={{fontFamily:QF,fontSize:"clamp(14px,3.5vw,18px)",fontWeight:900,letterSpacing:".06em",lineHeight:1.4,margin:0}}>Well done, continue with your next lesson</p>
-                <p style={{fontFamily:QF,fontSize:"clamp(13px,3.2vw,16px)",fontWeight:700,letterSpacing:".04em",lineHeight:1.45,margin:"8px 0 0",opacity:.92}}>Bien hecho, continúa con tu siguiente lección</p>
-              </div>
-            ):null}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"12px",gap:"8px"}}>
-              <div style={{display:"flex",alignItems:"center",gap:"10px",minWidth:0}}>
-                <span className="lvl-badge" style={{background:"#7c3aed",color:"#fff",flexShrink:0}}>{g.l3badge}</span>
-                <div><h1 id="l3-end-title" style={{fontFamily:QF,fontWeight:"900",fontSize:"clamp(16px,4vw,20px)",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.l3endTitle}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{getCatName()}</div></div>
-              </div>
-              {categoryRoundBlocker?null:<DashBackBtn onClick={function(){setShowL3EndModal(false);goDashboard();}} label={g.exerciseBack}/>}
+          {categoryRoundBlocker?(
+            <div role="status" aria-live="polite" style={{flexShrink:0,width:"100%",padding:"clamp(14px,4vw,22px) clamp(16px,5vw,28px)",background:"linear-gradient(135deg,#1e293b 0%,#0f172a 100%)",color:"#f8fafc",textAlign:"center"}}>
+              <p style={{fontFamily:QF,fontSize:"clamp(15px,4vw,22px)",fontWeight:900,letterSpacing:".06em",lineHeight:1.4,margin:0}}>Well done, continue with your next lesson</p>
+              <p style={{fontFamily:QF,fontSize:"clamp(14px,3.6vw,19px)",fontWeight:700,letterSpacing:".04em",lineHeight:1.45,margin:"10px 0 0",opacity:.93}}>Bien hecho, continúa con tu siguiente lección</p>
             </div>
-            <div style={{textAlign:"center",marginBottom:"12px",padding:"16px",border:"3px solid "+mainColorM,borderRadius:"20px",background:l3pctM>=80?"#f0faf4":l3pctM>=60?"#fffbeb":"#fff8f8"}}>
-              <div style={{fontSize:"40px",marginBottom:"4px"}}>{l3pctM>=80?"🏆":l3pctM>=60?"👍":"💪"}</div>
-              <div style={{fontFamily:QF,fontSize:"clamp(40px,12vw,56px)",fontWeight:"900",lineHeight:1,color:mainColorM}}>{l3cM}</div>
+          ):null}
+          <div style={{width:"100%",maxWidth:"720px",margin:"0 auto",padding:"clamp(16px,4vw,28px) clamp(16px,5vw,24px) 32px",flex:"1",display:"flex",flexDirection:"column",justifyContent:"center",boxSizing:"border-box"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"flex-start",marginBottom:"14px",gap:"10px"}}>
+              <span className="lvl-badge" style={{background:"#7c3aed",color:"#fff",flexShrink:0}}>{g.l3badge}</span>
+              <div><h1 id="l3-end-title" style={{fontFamily:QF,fontWeight:"900",fontSize:"clamp(17px,4.2vw,22px)",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.15}}>{g.l3endTitle}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{getCatName()}</div></div>
+            </div>
+            <div style={{textAlign:"center",marginBottom:"14px",padding:"18px",border:"3px solid "+mainColorM,borderRadius:"20px",background:l3pctM>=80?"#f0faf4":l3pctM>=60?"#fffbeb":"#fff8f8"}}>
+              <div style={{fontSize:"44px",marginBottom:"6px"}}>{l3pctM>=80?"🏆":l3pctM>=60?"👍":"💪"}</div>
+              <div style={{fontFamily:QF,fontSize:"clamp(44px,14vw,64px)",fontWeight:"900",lineHeight:1,color:mainColorM}}>{l3cM}</div>
               <div style={{fontFamily:QF,fontSize:"14px",color:"#555",marginTop:"4px"}}>{"/ "+sessW.length+" — "+Math.round(l3pctM)+"%"}</div>
               <div style={{fontFamily:QF,fontSize:"11px",color:"#aaa",letterSpacing:".1em",marginTop:"4px",textTransform:"uppercase"}}>{g.l3scoreLbl}</div>
-              <div style={{marginTop:"10px",display:"inline-flex",alignItems:"center",gap:"8px",padding:"6px 18px",borderRadius:"50px",background:"rgba(124,58,237,.08)",border:"1px solid rgba(124,58,237,.2)"}}>
+              <div style={{marginTop:"12px",display:"inline-flex",alignItems:"center",gap:"8px",padding:"6px 18px",borderRadius:"50px",background:"rgba(124,58,237,.08)",border:"1px solid rgba(124,58,237,.2)"}}>
                 <span style={{fontFamily:QF,fontSize:"11px",color:"#7c3aed",letterSpacing:".07em",textTransform:"uppercase"}}>{g.l3avgLabel}:</span>
                 <span style={{fontFamily:QF,fontSize:"17px",fontWeight:"900",color:scoreColor(avgPhSM)}}>{avgPhSM}/100</span>
               </div>
             </div>
-            <p style={{fontFamily:QF,fontSize:"12px",color:"#888",marginBottom:"10px",textAlign:"center"}}>{g.l3endSub}</p>
-            {categoryRoundBlocker?null:(
-            <div style={{display:"flex",gap:"10px",marginTop:"6px",marginBottom:"8px",flexWrap:"wrap"}}>
-              {hasNextM?(
-                <RoundBtn onClick={function(){setShowL3EndModal(false);startCat(catIdx+1);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{"▶ "+g.nextCatTxt+" "+(lang==="ES"?effectiveCats[catIdx+1].nameES:effectiveCats[catIdx+1].nameEN)}</RoundBtn>
-              ):(
-                <RoundBtn onClick={function(){setShowL3EndModal(false);}} filled style={{flex:1,fontSize:"13px",padding:"14px 16px",letterSpacing:".04em"}}>{lang==="EN"?"🏆 FINISHED — BACK TO START":"🏆 FINALIZADO — VOLVER AL INICIO"}</RoundBtn>
-              )}
-            </div>
-            )}
-            {categoryRoundBlocker?null:(
-            <button type="button" onClick={function(){setShowL3Details(!showL3Details);}} style={{width:"100%",marginBottom:"8px",padding:"10px 16px",borderRadius:"50px",border:"1px solid #e9d5ff",background:"#faf5ff",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em",color:"#7c3aed"}}>
-              {showL3Details?(lang==="EN"?"HIDE DETAILS ▲":"OCULTAR DETALLE ▲"):(lang==="EN"?"SHOW DETAILS ▼":"VER DETALLE ▼")}
-            </button>
-            )}
-            {categoryRoundBlocker?null:(showL3Details?l3res.map(function(r,i){
-              var rs=r.analysis?r.analysis.overall:0;var rc=scoreColor(rs);
-              return(<div key={i} style={{marginBottom:"10px",padding:"12px 14px",borderRadius:"14px",border:"2px solid "+(r.correct?"#bbf7d0":"#fca5a5"),background:r.correct?"#f0fdf4":"#fff8f8"}}>
-                <div style={{display:"flex",alignItems:"center",gap:"10px",marginBottom:"8px"}}>
-                  <span style={{fontSize:"18px",flexShrink:0}}>{r.correct?"✅":"❌"}</span>
-                  <div style={{flex:1,minWidth:0}}><span style={{fontFamily:QF,fontSize:"13px",fontWeight:"900",color:"#1d4ed8"}}>{r.promptWord}</span><span style={{fontFamily:QF,fontSize:"11px",color:"#aaa",marginLeft:"8px"}}>→</span><span style={{fontFamily:QF,fontSize:"13px",fontWeight:"700",color:"#333",marginLeft:"8px"}}>{r.expected}</span></div>
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:"2px"}}><span style={{fontFamily:QF,fontSize:"15px",fontWeight:"900",color:rc}}>{rs}/100</span><span style={{fontFamily:QF,fontSize:"9px",fontWeight:"700",letterSpacing:".07em",color:rc,textTransform:"uppercase"}}>{scoreLabel(rs,lang)}</span></div>
-                </div>
-                <div style={{display:"flex",gap:"5px",flexWrap:"wrap",marginBottom:"8px"}}>
-                  {r.analysis?[[g.l3accuracyLbl,r.analysis.accuracy],[g.l3phoneticLbl,r.analysis.phonetic],[g.l3fluencyLbl,r.analysis.fluency]].map(function(it){var c=scoreColor(it[1]);return(<span key={it[0]} className="ph-sub-chip" style={{borderColor:c+"66",color:c}}>{it[0]}: <strong>{it[1]}</strong></span>);}):null}
-                </div>
-                <div style={{display:"flex",gap:"16px",flexWrap:"wrap",alignItems:"flex-start"}}>
-                  <div><span style={{fontFamily:QF,fontSize:"10px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>{g.l3expectedLbl}</span><div style={{padding:"6px 12px",background:"#fff",borderRadius:"8px",border:"1px solid #e5e7eb",display:"inline-flex",gap:"1px"}}>{r.diff.map(function(d,di){return(<span key={di} className={d.ok?"char-ok":"char-bad"} style={{fontFamily:QF,fontSize:"16px",fontWeight:"700"}}>{d.c}</span>);})}</div></div>
-                  <div><span style={{fontFamily:QF,fontSize:"10px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase",display:"block",marginBottom:"4px"}}>{g.l3saidLbl}</span><div style={{padding:"6px 12px",background:"#fff",borderRadius:"8px",border:"1px solid #e5e7eb",fontFamily:QF,fontSize:"13px",color:r.heard?"#666":"#ccc",fontStyle:"italic"}}>{r.heard?("\""+r.heard+"\""):g.l3nothing}</div></div>
-                </div>
-                {r.analysis&&r.analysis.errors.length>0?(<div style={{marginTop:"8px"}}><span style={{fontFamily:QF,fontSize:"9px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase",color:"#aaa",display:"block",marginBottom:"4px"}}>{g.l3errorsLbl}</span>{r.analysis.errors.slice(0,2).map(function(e,ei){var bc=e.severity==="grave"?"#dc2626":e.severity==="moderado"?"#ea580c":"#d97706";return(<div key={ei} className="ph-err-row" style={{borderLeftColor:bc}}><span className="ph-err-sev" style={{color:bc}}>{e.severity}</span><span>{e.text}</span></div>);})}</div>):(<div style={{marginTop:"6px",fontFamily:QF,fontSize:"11px",color:"#16a34a"}}>{g.l3noErrors}</div>)}
-              </div>);
-            }):null)}
-            {categoryRoundBlocker?null:(
-            <button onClick={function(){setShowFW(true);}} style={{width:"100%",marginTop:"4px",padding:"12px 18px",borderRadius:"50px",border:"2px solid #e8e8e8",background:"#fff",cursor:"pointer",fontFamily:QF,fontSize:"13px",fontWeight:"700",letterSpacing:".06em",color:"#555",display:"flex",alignItems:"center",justifyContent:"center",gap:"8px",transition:"all .15s"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#000";e.currentTarget.style.color="#000";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#e8e8e8";e.currentTarget.style.color="#555";}}>
-              🧱 {lang==="EN"?"SEE FULL WALL":"VER PARED COMPLETA"}
-              <span style={{fontSize:"10px",color:"#aaa",fontWeight:"400"}}>{"("+allBD2M.filter(function(d){return d&&d.timesDone>=3;}).length+"/30)"}</span>
-            </button>
-            )}
+            <p style={{fontFamily:QF,fontSize:"12px",color:"#888",marginBottom:"0",textAlign:"center"}}>{g.l3endSub}</p>
           </div>
         </div>
       );
