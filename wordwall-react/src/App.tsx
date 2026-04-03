@@ -322,6 +322,7 @@ var G={
     l3relisten:"🎤 GRABAR DE NUEVO",l3relistenHint:"Cuando termines, toca otra vez el botón para enviar.",
     l3continueNext:"SIGUIENTE PALABRA →",
     l3RetryHint:function(n){return"Intenta de nuevo · te quedan "+n+" intento"+(n===1?"":"s");},
+    l3RetryWall:"Sigue intentando hasta acertar la pronunciación.",
     l3heard:"Escuché:",l3nothing:"No te escuché. Toca para intentar de nuevo.",
     l3noSupport:"Tu navegador no soporta reconocimiento de voz. Usa Google Chrome.",
     l3skip:"Saltar →",l3endTitle:"RESULTADO DE PRONUNCIACIÓN",
@@ -364,7 +365,7 @@ var G={
     instrL2Title:"NIVEL 2 — ESCRIBE LA RESPUESTA",
     instrL2Rules:["Escribe la traducción correcta","Tienes 8 segundos por palabra","Presiona Enter o el botón para verificar","Puedes pausar en cualquier momento"],
     instrL3Title:"NIVEL 3 — PRONUNCIACIÓN",
-    instrL3Rules:["Presiona Espacio o el botón para grabar","Pronuncia la palabra claramente","Presiona de nuevo para enviar","Tienes hasta 3 intentos por palabra","Se avanzará automáticamente tras la retroalimentación"]
+    instrL3Rules:["Presiona Espacio o el botón para grabar","Pronuncia la palabra claramente","Presiona de nuevo para enviar","Debes acertar cada palabra para continuar","La pronunciación no cuenta para verificar el muro — solo para practicar"]
   },
   EN:{
     title:"WORD WALL PROGRESS",
@@ -386,6 +387,7 @@ var G={
     l3relisten:"🎤 RECORD AGAIN",l3relistenHint:"When you’re done speaking, tap the button again to submit.",
     l3continueNext:"NEXT WORD →",
     l3RetryHint:function(n){return"Try again · "+n+" attempt"+(n===1?"":"s")+" left";},
+    l3RetryWall:"Keep trying until your pronunciation is accepted.",
     l3heard:"I heard:",l3nothing:"I didn't hear you. Tap to try again.",
     l3noSupport:"Your browser doesn't support voice recognition. Use Google Chrome.",
     l3skip:"Skip →",l3endTitle:"PRONUNCIATION RESULTS",
@@ -428,7 +430,7 @@ var G={
     instrL2Title:"LEVEL 2 — WRITE THE ANSWER",
     instrL2Rules:["Type the correct translation","You have 8 seconds per word","Press Enter or the button to check","You can pause at any time"],
     instrL3Title:"LEVEL 3 — PRONUNCIATION",
-    instrL3Rules:["Press Space or the button to record","Say the word clearly","Press again to submit","You have up to 3 attempts per word","It will auto-advance after feedback"]
+    instrL3Rules:["Press Space or the button to record","Say the word clearly","Press again to submit","Each word must be accepted before you continue","Pronunciation does not count toward wall verification — practice only"]
   }
 };
 
@@ -864,8 +866,7 @@ function Game(p){
       var wid=String(sessW[i].targetId);
       var l1ok=corrList.indexOf(sessW[i].targetId)!==-1;
       var l2ok=l2ans[i]&&l2ans[i].correct;
-      var l3ok=l3res[i]&&l3res[i].correct;
-      if(l1ok&&l2ok&&l3ok) completedIds.push({id:wid,word:sessW[i].targetWord});
+      if(l1ok&&l2ok) completedIds.push({id:wid,word:sessW[i].targetWord});
     }
     completedIds.forEach(function(w){
       updProg[w.id]=Object.assign({},updProg[w.id]||{},{completed:true});
@@ -1122,7 +1123,7 @@ function Game(p){
       }
     },1000);
     return clrT;
-  },[screen,qi]);
+  },[screen,qi,fb]);
 
   function handleCorrectAnswerAssessment(targetId, promptWord, targetWord, currentProg, isDemo){
     var curMap=currentProg||{};
@@ -1146,10 +1147,9 @@ function Game(p){
     var cur=sessW[qi];
     var ok = ans===cur.targetWord;
     clrT();
-    var latestProg = wordProg;
     if(ok){
       sOk();
-      latestProg = handleCorrectAnswer(cur.targetId, cur.targetWord, wordProg);
+      handleCorrectAnswer(cur.targetId, cur.targetWord, wordProg);
       addUserPoints(tl||0);
       setScore(function(s){return s+(tl||0);});
       setLpts(tl||0);
@@ -1162,21 +1162,23 @@ function Game(p){
         return idx<=qi || item.targetId!==cur.targetId;
       });
       setSessW(queueAfter);
-    }else{
-      var hasLater=sessW.slice(qi+1).some(function(item){return item.targetId===cur.targetId;});
-      if(!hasLater){
-        queueAfter=sessW.concat([cur]);
-        setSessW(queueAfter);
-      }
     }
     setSel(ans);
     setFb(ans===null?"timeout":ok?"ok":"wrong");
+    if(!ok){
+      setTimeout(function(){
+        setFb(null);
+        setSel(null);
+        setTimer(TMAX);
+        tval.current=TMAX;
+      },1600);
+      return;
+    }
     setTimeout(function(){
       var nx=qi+1;
       var qLen=queueAfter.length;
       if(nx>=qLen){
-        var fc=corrList.length+(ok?1:0);
-        if(fc===qLen)sWin();
+        sWin();
         setScreen("results");
       } else {
         if(qi===Math.floor(qLen/2)-1) sTada();
@@ -1304,6 +1306,17 @@ function Game(p){
       } else {
         handleCorrectAnswer(cur.targetId, cur.targetWord, wordProg);
       }
+    }
+    var wallL2=screenR.current==="l2play";
+    if(!ok&&wallL2){
+      setL2Fb({ok:ok,expected:cur.targetWord,typed:typedStr.trim(),timeout:!!timeout});
+      setTimeout(function(){
+        setL2Fb(null);
+        setL2Inp("");
+        l2tval.current=TMAX_L23;
+        setL2Timer(TMAX_L23);
+      },1400);
+      return;
     }
     var newAns=l2ans.concat([{expected:cur.targetWord,typed:typedStr.trim(),correct:ok,timeout:!!timeout,promptWord:cur.promptWord}]);
     setL2Ans(newAns);
@@ -1589,11 +1602,16 @@ function Game(p){
   }
   function processL3(heard,cur){
     if(screenR.current!=="l3play"&&screenR.current!=="asL3play")return;
+    var wallL3=screenR.current==="l3play";
     if(heard==="__SKIP__"){
       sWrong();
       var analysis0=analyzePronunciation(cur.targetWord,"",speechLang);
       var diff0=pronDiff(cur.targetWord,"");
       l3FailCountRef.current=0;
+      if(wallL3){
+        setL3Fb({heard:"",correct:false,diff:diff0,analysis:analysis0,skipped:true,retry:true,wallRetry:true});
+        return;
+      }
       setL3Fb({heard:"",correct:false,diff:diff0,analysis:analysis0,skipped:true});
       var newRes0=l3res.concat([{expected:cur.targetWord,heard:"",diff:diff0,correct:false,analysis:analysis0,promptWord:cur.promptWord}]);
       queueL3WordComplete(newRes0);
@@ -1607,10 +1625,12 @@ function Game(p){
       sOk();
       if(screenR.current==="asL3play"){
         handleCorrectAnswerAssessment(cur.targetId, cur.promptWord, cur.targetWord, asDemo?demoAsProg:asProg, !!asDemo);
-      } else {
+      } else if(!wallL3){
         handleCorrectAnswer(cur.targetId,cur.targetWord,wordProg);
       }
-      if(screenR.current!=="asL3play"||!asDemo)addUserPoints(Math.max(1,Math.round(analysis.overall/5)));
+      if(!wallL3&&(screenR.current!=="asL3play"||!asDemo)){
+        addUserPoints(Math.max(1,Math.round(analysis.overall/5)));
+      }
       l3FailCountRef.current=0;
       setL3Fb({heard:fixedHeard,correct:true,diff:diff,analysis:analysis});
       var newResOk=l3res.concat([{expected:cur.targetWord,heard:fixedHeard,diff:diff,correct:true,analysis:analysis,promptWord:cur.promptWord}]);
@@ -1618,6 +1638,11 @@ function Game(p){
       return;
     }
     sWrong();
+    if(wallL3){
+      l3FailCountRef.current=0;
+      setL3Fb({heard:fixedHeard,correct:false,diff:diff,analysis:analysis,retry:true,wallRetry:true});
+      return;
+    }
     l3FailCountRef.current+=1;
     if(l3FailCountRef.current<L3_SPEECH_MAX_TRIES){
       var left=L3_SPEECH_MAX_TRIES-l3FailCountRef.current;
@@ -2532,7 +2557,7 @@ function Game(p){
             ):(
               <div style={{width:"100%",display:"flex",flexDirection:"column",gap:"8px"}}>
                 <div className="ph-verdict" style={{background:l3fb.correct?"#000":l3fb.retry?"#fffbeb":"#fff3f0",border:l3fb.correct?"none":l3fb.retry?"2px solid #fde68a":"2px solid #f5c4b5",color:l3fb.correct?"#fff":"#d44e25"}}>
-                  {l3fb.correct?"✓ "+g.l2ok+" — "+scoreLabel(l3fb.analysis.overall,lang):(l3fb.retry&&typeof l3fb.triesLeft==="number"?g.l3RetryHint(l3fb.triesLeft):"✗ "+g.l2wrong+" "+cur3.targetWord)}
+                  {l3fb.correct?"✓ "+g.l2ok+" — "+scoreLabel(l3fb.analysis.overall,lang):(l3fb.retry&&l3fb.wallRetry?g.l3RetryWall:(l3fb.retry&&typeof l3fb.triesLeft==="number"?g.l3RetryHint(l3fb.triesLeft):"✗ "+g.l2wrong+" "+cur3.targetWord))}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:"14px",padding:"10px 14px",borderRadius:"14px",background:"#f9f9f9",border:"1px solid #eee"}}>
                   <ScoreRing value={l3fb.analysis.overall}/>
