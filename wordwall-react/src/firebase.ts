@@ -83,25 +83,6 @@ async function readUserDoc(userId, emailHint) {
   var primarySnap = await getDoc(primaryRef);
   if (primarySnap.exists()) return { ref: primaryRef, snap: primarySnap };
 
-  var em = normEmail(emailHint || (auth.currentUser && auth.currentUser.email));
-  if (em) {
-    var legacySuffixRef = doc(
-      db,
-      'externalApps',
-      'LANGUAGE',
-      'WordWall',
-      'UserDataWall',
-      'WordWallFile',
-      em + '-current',
-    );
-    var legacySuffixSnap = await getDoc(legacySuffixRef);
-    if (legacySuffixSnap.exists()) {
-      await setDoc(primaryRef, legacySuffixSnap.data() || {}, { merge: true });
-      var migratedSuffix = await getDoc(primaryRef);
-      return { ref: primaryRef, snap: migratedSuffix };
-    }
-  }
-
   // Backward compatibility: migrate from legacy uid doc if it exists.
   if (userId) {
     var legacyRef = legacyUserWallDataRef(userId);
