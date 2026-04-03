@@ -131,18 +131,18 @@ window.fbSaveResult = async function (data) {
   }
 };
 
-/** Cumulative points on the user doc; uses Firestore increment for safe concurrent updates. */
+/** Cumulative points on the user doc; uses Firestore increment with merge so the field is always created. */
 window.fbAddPoints = async function (userId, userEmail, delta) {
   try {
     var d = Math.floor(Number(delta));
     if (!userId || userId === 'guest' || !Number.isFinite(d) || d <= 0) return;
     await readUserDoc(userId, userEmail);
     var ref = userWallDataRef(userId, userEmail);
-    try {
-      await updateDoc(ref, { points: increment(d), pointsUpdatedAt: serverTimestamp() });
-    } catch (err) {
-      await setDoc(ref, { points: d, pointsUpdatedAt: serverTimestamp() }, { merge: true });
-    }
+    await setDoc(
+      ref,
+      { points: increment(d), pointsUpdatedAt: serverTimestamp() },
+      { merge: true },
+    );
   } catch (e) {
     console.error('fbAddPoints', e);
   }
@@ -184,7 +184,13 @@ window.fbAuthReady = function (cb) {
 window.fbGetProfile = async function (uid) {
   try {
     var r = await readUserDoc(uid, (auth.currentUser && auth.currentUser.email) || '');
-    return r.snap.exists() ? r.snap.data() : null;
+    if (!r.snap.exists()) return null;
+    var d = r.snap.data();
+    if (d.points === undefined || d.points === null) {
+      await setDoc(r.ref, { points: 0, pointsUpdatedAt: serverTimestamp() }, { merge: true });
+      d = Object.assign({}, d, { points: 0 });
+    }
+    return d;
   } catch (e) {
     return null;
   }
