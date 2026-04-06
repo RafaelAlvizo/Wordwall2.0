@@ -342,11 +342,12 @@ var G={
     progressLbl:"PROGRESO DE LA PALABRA",
     mHigh:{e:"🏆",t:"¡EXCELENTE!",b:"¡Vas por muy buen camino!"},
     mLow:{e:"💪",t:"¡NO TE RINDAS!",b:"Cada intento te hace más fuerte."},
-    rules:[["⏱","5 seg"],["⭐","Pts = seg"],["🧱","3 correctas"]],
-    info:[["🧱","Cada palabra necesita 3 respuestas correctas para verificarse"],
-          ["⏱","Tienes 5 segundos para responder en el nivel 1"],
-          ["⭐","Los puntos dependen de tu velocidad de respuesta"],
-          ["🔁","Las palabras se repiten hasta que las domines"]],
+    leaderboardTitle:"CLASIFICACIÓN",
+    leaderboardLoading:"Cargando…",
+    leaderboardEmpty:"Aún no hay jugadores con puntos.",
+    leaderboardColRank:"#",
+    leaderboardColPlayer:"Jugador",
+    leaderboardAnon:"Jugador",
     assessBadge:"EVALUACIÓN",assessTitle:"PALABRAS CONOCIDAS",assessSub:"Del módulo de vocabulario (tu correo)",
     assessIntro:"Has completado todo el muro. Practica las palabras que el sistema ya registró para ti.",
     assessCTA:"▶ PRACTICAR PALABRAS CONOCIDAS",assessLoad:"Cargando tu lista…",assessEmpty:"No hay palabras registradas para tu correo en Evaluación.",
@@ -407,11 +408,12 @@ var G={
     progressLbl:"WORD PROGRESS",
     mHigh:{e:"🏆",t:"EXCELLENT!",b:"You're on the right track!"},
     mLow:{e:"💪",t:"DON'T GIVE UP!",b:"Every attempt makes you stronger."},
-    rules:[["⏱","5 sec"],["⭐","Pts = sec"],["🧱","3 correct"]],
-    info:[["🧱","Each word needs 3 correct answers to be verified"],
-          ["⏱","You have 5 seconds in level 1"],
-          ["⭐","Points depend on how fast you answer"],
-          ["🔁","Words repeat until you've mastered them"]],
+    leaderboardTitle:"LEADERBOARD",
+    leaderboardLoading:"Loading…",
+    leaderboardEmpty:"No players with points yet.",
+    leaderboardColRank:"#",
+    leaderboardColPlayer:"Player",
+    leaderboardAnon:"Player",
     assessBadge:"ASSESSMENT",assessTitle:"KNOWN WORDS",assessSub:"From vocabulary assessment (your email)",
     assessIntro:"You've completed the full wall. Practice words the system already registered for you.",
     assessCTA:"▶ PRACTICE KNOWN WORDS",assessLoad:"Loading your list…",assessEmpty:"No words found for your email in Assessment.",
@@ -757,6 +759,9 @@ function Game(p){
   /* ── Pronunciation results as modal on home (every category finish) ── */
   var _l3m = useState(false);    var showL3EndModal = _l3m[0]; var setShowL3EndModal = _l3m[1];
 
+  /* ── Home leaderboard (WordWallFile users with points) ── */
+  var _lbr = useState(null);     var leaderboardRows = _lbr[0]; var setLeaderboardRows = _lbr[1];
+
   var _aq = useState([]);        var asQueue = _aq[0]; var setAsQueue = _aq[1];
   var _aqi= useState(0);         var asQi    = _aqi[0]; var setAsQi    = _aqi[1];
   var _ai = useState("");        var asInp   = _ai[0];  var setAsInp   = _ai[1];
@@ -786,6 +791,13 @@ function Game(p){
   useEffect(function(){
     demoAsProgRef.current=demoAsProg||{};
   }, [demoAsProg]);
+
+  useEffect(function(){
+    if(screen!=="start")return;
+    if(typeof window.fbGetLeaderboard!=="function")return;
+    setLeaderboardRows(null);
+    window.fbGetLeaderboard().then(function(rows){ setLeaderboardRows(rows||[]); });
+  }, [screen]);
 
   function asId(gameLang, prompt, target){
     function n(s){return String(s||"").trim().toLowerCase().replace(/\s+/g," ");}
@@ -2328,33 +2340,115 @@ function Game(p){
     return(
     <>
     {l3Popup}
-    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"24px 20px",background:"#fff",position:"relative"}}>
-      <button onClick={p.onSignOut} style={{position:"absolute",top:"16px",right:"16px",display:"flex",alignItems:"center",gap:"6px",padding:"8px 16px",borderRadius:"50px",background:"#fff",border:"2px solid #e0e0e0",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",color:"#aaa"}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#000";e.currentTarget.style.color="#000";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#e0e0e0";e.currentTarget.style.color="#aaa";}}>
+    <div className="start-home-wrap">
+      <button onClick={p.onSignOut} style={{position:"absolute",top:"16px",right:"16px",display:"flex",alignItems:"center",gap:"6px",padding:"8px 16px",borderRadius:"50px",background:"#fff",border:"2px solid #e0e0e0",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",color:"#aaa",zIndex:5}} onMouseEnter={function(e){e.currentTarget.style.borderColor="#000";e.currentTarget.style.color="#000";}} onMouseLeave={function(e){e.currentTarget.style.borderColor="#e0e0e0";e.currentTarget.style.color="#aaa";}}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         {lang==="EN"?"LOG OUT":"CERRAR SESIÓN"}
       </button>
-      <h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"26px",letterSpacing:".14em",textAlign:"center",textTransform:"uppercase",marginBottom:"6px"}}>{g.title}</h1>
-      <p style={{fontFamily:QF,fontSize:"13px",color:"#555",textAlign:"center",maxWidth:"560px",lineHeight:"1.6",marginBottom:"14px"}}>{g.sub}</p>
-      <div style={{display:"flex",gap:"10px",marginBottom:"20px",flexWrap:"wrap",justifyContent:"center"}}>
-        {g.rules.map(function(r){return(<div key={r[1]} style={{display:"flex",alignItems:"center",gap:"7px",padding:"8px 18px",borderRadius:"50px",border:"2px solid #e8e8e8"}}><span style={{fontSize:"17px"}}>{r[0]}</span><span style={{fontFamily:QF,fontSize:"12px",fontWeight:"700",letterSpacing:".06em",textTransform:"uppercase"}}>{r[1]}</span></div>);})}
-      </div>
-      <div style={{display:"flex",gap:"28px",maxWidth:"720px",width:"100%",alignItems:"flex-start",marginBottom:"24px",flexWrap:"wrap",justifyContent:"center"}}>
-        <div style={{flex:"0 0 auto",width:"340px"}}><Wall brickData={Array(10).fill({timesDone:0,word:""})} curQ={-1} playing={false} brickH={42} staggerW={38}/></div>
-        <div style={{flex:1,minWidth:"200px",display:"flex",flexDirection:"column",gap:"12px",paddingTop:"6px"}}>
-          {g.info.map(function(it){return(<div key={it[1]} style={{display:"flex",alignItems:"flex-start",gap:"14px"}}><span style={{fontSize:"22px",lineHeight:"1",flexShrink:0}}>{it[0]}</span><span style={{fontFamily:QF,fontSize:"13px",color:"#333",lineHeight:"1.5"}}>{it[1]}</span></div>);})}
-          <div style={{marginTop:"6px",padding:"10px 14px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
-            <div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"6px"}}>CATEGORÍAS</div>
-            {effectiveCats.map(function(c,ci){var colors=["#e8633a","#7c3aed","#0891b2","#0d9488"];var catDone=c.pairs.every(function(p){var id=String(lang==="ES"?p.enId:p.esId);return!!(wordProg[id]||{}).completed;});return(<div key={ci} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:catDone?"#16a34a":colors[ci%colors.length],flexShrink:0}}></div><span style={{fontFamily:QF,fontSize:"11px",color:catDone?"#16a34a":"#555"}}>{learnLang==="ES"?c.nameES:c.nameEN}{catDone?" ✓":""}</span></div>);})}
+      <div className="start-home-row">
+        <aside className="start-home-lb">
+        <div className="start-home-lb-inner" style={{
+          padding:"22px 20px 18px",
+          borderRadius:"22px",
+          boxSizing:"border-box",
+          background:"linear-gradient(155deg,#0f172a 0%,#1e293b 42%,#312e81 100%)",
+          border:"1px solid rgba(255,255,255,.14)",
+          boxShadow:"0 24px 48px rgba(15,23,42,.28), 0 0 0 1px rgba(255,255,255,.08) inset, 0 1px 0 rgba(255,255,255,.12) inset",
+          position:"relative",
+          overflow:"hidden",
+        }}>
+          <div aria-hidden style={{position:"absolute",inset:0,background:"radial-gradient(ellipse 80% 50% at 100% 0%, rgba(249,115,22,.22), transparent 55%), radial-gradient(ellipse 60% 40% at 0% 100%, rgba(94,234,212,.12), transparent 50%)",pointerEvents:"none"}} />
+          <div style={{position:"relative",flexShrink:0,textAlign:"center",marginBottom:"14px",paddingBottom:"12px",borderBottom:"1px solid rgba(255,255,255,.12)"}}>
+            <div style={{fontSize:"28px",lineHeight:1,marginBottom:"8px",filter:"drop-shadow(0 2px 4px rgba(0,0,0,.3))"}}>🏆</div>
+            <div style={{
+              fontFamily:QF,
+              fontSize:"13px",
+              fontWeight:"900",
+              letterSpacing:".14em",
+              textTransform:"uppercase",
+              background:"linear-gradient(90deg,#fcd34d,#fbbf24,#f59e0b)",
+              WebkitBackgroundClip:"text",
+              WebkitTextFillColor:"transparent",
+              backgroundClip:"text",
+            }}>{g.leaderboardTitle}</div>
+            <div style={{marginTop:"8px",height:"4px",width:"56px",marginLeft:"auto",marginRight:"auto",borderRadius:"99px",background:"linear-gradient(90deg,#f97316,#a855f7,#22d3ee)"}} />
           </div>
+          {leaderboardRows===null?(
+            <div style={{position:"relative",flex:1,minHeight:"120px",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:QF,fontSize:"14px",color:"rgba(248,250,252,.65)",textAlign:"center",padding:"16px"}}>{g.leaderboardLoading}</div>
+          ):leaderboardRows.length===0?(
+            <div style={{position:"relative",flex:1,minHeight:"120px",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:QF,fontSize:"13px",color:"rgba(248,250,252,.55)",textAlign:"center",lineHeight:"1.55",padding:"16px 10px"}}>{g.leaderboardEmpty}</div>
+          ):(
+            <div className="start-home-lb-scroll" style={{position:"relative",marginRight:"-4px",paddingRight:"4px"}}>
+              <table style={{width:"100%",borderCollapse:"separate",borderSpacing:0,fontFamily:QF,fontSize:"13px"}}>
+                <thead>
+                  <tr>
+                    <th style={{textAlign:"left",fontWeight:"800",padding:"12px 10px",color:"rgba(248,250,252,.55)",textTransform:"uppercase",letterSpacing:".08em",fontSize:"10px",borderBottom:"2px solid rgba(255,255,255,.1)",width:"44px"}}>{g.leaderboardColRank}</th>
+                    <th style={{textAlign:"left",fontWeight:"800",padding:"12px 8px",color:"rgba(248,250,252,.55)",textTransform:"uppercase",letterSpacing:".08em",fontSize:"10px",borderBottom:"2px solid rgba(255,255,255,.1)"}}>{g.leaderboardColPlayer}</th>
+                    <th style={{textAlign:"right",fontWeight:"800",padding:"12px 8px",color:"rgba(248,250,252,.55)",textTransform:"uppercase",letterSpacing:".08em",fontSize:"10px",borderBottom:"2px solid rgba(255,255,255,.1)"}}>{g.pts}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {leaderboardRows.map(function(row,ri){
+                    var nm=row.displayName||g.leaderboardAnon;
+                    var medal=ri===0?"🥇":ri===1?"🥈":ri===2?"🥉":"";
+                    var rowBg=ri===0?"linear-gradient(90deg, rgba(234,179,8,.2), rgba(234,179,8,.04) 45%, transparent)":ri===1?"linear-gradient(90deg, rgba(148,163,184,.22), rgba(148,163,184,.05) 45%, transparent)":ri===2?"linear-gradient(90deg, rgba(180,83,9,.2), rgba(180,83,9,.06) 45%, transparent)":ri%2===0?"rgba(255,255,255,.03)":"rgba(255,255,255,.06)";
+                    var ptsGrad=ri===0?"linear-gradient(135deg,#fcd34d,#f59e0b)":ri===1?"linear-gradient(135deg,#e2e8f0,#94a3b8)":ri===2?"linear-gradient(135deg,#fdba74,#ea580c)":"";
+                    return(
+                      <tr key={ri} style={{background:rowBg}}>
+                        <td style={{padding:"12px 8px 12px 10px",fontWeight:"800",color:"rgba(248,250,252,.9)",verticalAlign:"middle",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+                          <span style={{display:"inline-flex",alignItems:"center",gap:"6px"}}>
+                            {medal?(<span style={{fontSize:"18px",lineHeight:1}}>{medal}</span>):null}
+                            <span style={{fontVariantNumeric:"tabular-nums"}}>{ri+1}</span>
+                          </span>
+                        </td>
+                        <td style={{padding:"12px 8px",color:"#f8fafc",fontWeight:"600",wordBreak:"break-word",maxWidth:"220px",lineHeight:1.35,borderBottom:"1px solid rgba(255,255,255,.06)"}}>{nm}</td>
+                        <td style={{padding:"12px 8px",textAlign:"right",verticalAlign:"middle",borderBottom:"1px solid rgba(255,255,255,.06)"}}>
+                          {ptsGrad?(
+                            <span style={{
+                              display:"inline-block",
+                              fontWeight:"900",
+                              fontSize:"15px",
+                              fontVariantNumeric:"tabular-nums",
+                              background:ptsGrad,
+                              WebkitBackgroundClip:"text",
+                              WebkitTextFillColor:"transparent",
+                              backgroundClip:"text",
+                              filter:"drop-shadow(0 1px 2px rgba(0,0,0,.25))",
+                            }}>{row.points}</span>
+                          ):(
+                            <span style={{fontWeight:"900",fontSize:"14px",fontVariantNumeric:"tabular-nums",color:"#93c5fd"}}>{row.points}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        </aside>
+        <div className="start-home-mid">
+          <main className="start-home-center">
+            <h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"clamp(22px,4vw,28px)",letterSpacing:".14em",textTransform:"uppercase",margin:0,lineHeight:1.15}}>{g.title}</h1>
+            <p style={{fontFamily:QF,fontSize:"13px",color:"#555",lineHeight:"1.55",margin:0,maxWidth:"420px"}}>{g.sub}</p>
+            <div style={{flexShrink:0,width:"340px",maxWidth:"100%"}}><Wall brickData={Array(10).fill({timesDone:0,word:""})} curQ={-1} playing={false} brickH={42} staggerW={38}/></div>
+            {wallComplete?(
+              <div style={{width:"100%",maxWidth:"420px",padding:"14px 18px",borderRadius:"16px",border:"2px solid #16a34a",background:"#f0faf4",textAlign:"center"}}>
+                <div style={{fontSize:"32px",marginBottom:"6px"}}>🏆</div>
+                <div style={{fontFamily:QF,fontSize:"13px",fontWeight:"700",letterSpacing:".08em",color:"#16a34a",textTransform:"uppercase"}}>{lang==="EN"?"ALL WORDS COMPLETED!":"¡TODAS LAS PALABRAS COMPLETADAS!"}</div>
+              </div>
+            ):null}
+            <RoundBtn onClick={function(){var ci=0;for(var i=0;i<effectiveCats.length;i++){var c=effectiveCats[i];var hasPending=c.pairs.some(function(p){var id=String(lang==="ES"?p.enId:p.esId);return!(wordProg[id]||{}).completed;});if(hasPending){ci=i;break;}}startCat(ci);}} filled style={{fontSize:"16px",padding:"15px 64px",letterSpacing:".12em",flexShrink:0}}>{"▶ "+(wallComplete?(lang==="EN"?"PLAY AGAIN":"JUGAR DE NUEVO"):g.start)}</RoundBtn>
+          </main>
+          <aside className="start-home-cats">
+            <div style={{padding:"12px 14px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
+              <div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"8px"}}>{lang==="EN"?"CATEGORIES":"CATEGORÍAS"}</div>
+              {effectiveCats.map(function(c,ci){var colors=["#e8633a","#7c3aed","#0891b2","#0d9488"];var catDone=c.pairs.every(function(p){var id=String(lang==="ES"?p.enId:p.esId);return!!(wordProg[id]||{}).completed;});return(<div key={ci} style={{display:"flex",alignItems:"center",gap:"8px",marginBottom:"4px"}}><div style={{width:"10px",height:"10px",borderRadius:"2px",background:catDone?"#16a34a":colors[ci%colors.length],flexShrink:0}}></div><span style={{fontFamily:QF,fontSize:"11px",color:catDone?"#16a34a":"#555"}}>{learnLang==="ES"?c.nameES:c.nameEN}{catDone?" ✓":""}</span></div>);})}
+            </div>
+          </aside>
         </div>
       </div>
-      {wallComplete?(
-        <div style={{width:"100%",maxWidth:"520px",marginBottom:"16px",padding:"16px 20px",borderRadius:"16px",border:"2px solid #16a34a",background:"#f0faf4",textAlign:"center"}}>
-          <div style={{fontSize:"36px",marginBottom:"8px"}}>🏆</div>
-          <div style={{fontFamily:QF,fontSize:"14px",fontWeight:"700",letterSpacing:".08em",color:"#16a34a",textTransform:"uppercase"}}>{lang==="EN"?"ALL WORDS COMPLETED!":"¡TODAS LAS PALABRAS COMPLETADAS!"}</div>
-        </div>
-      ):null}
-      <RoundBtn onClick={function(){var ci=0;for(var i=0;i<effectiveCats.length;i++){var c=effectiveCats[i];var hasPending=c.pairs.some(function(p){var id=String(lang==="ES"?p.enId:p.esId);return!(wordProg[id]||{}).completed;});if(hasPending){ci=i;break;}}startCat(ci);}} filled style={{fontSize:"16px",padding:"15px 64px",letterSpacing:".12em"}}>{"▶ "+(wallComplete?(lang==="EN"?"PLAY AGAIN":"JUGAR DE NUEVO"):g.start)}</RoundBtn>
     </div>
     </>
     );

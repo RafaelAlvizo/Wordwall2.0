@@ -126,3 +126,91 @@
       from{transform:translateY(0) scale(1);opacity:.85}
       to{transform:translateY(-5px) scale(1.06);opacity:1}
     }
+
+    /* Start screen — leaderboard | title+wall+CTA | categories */
+    .start-home-wrap{
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      position:relative;
+      box-sizing:border-box;
+      padding:52px 16px 28px clamp(10px,3vw,28px);
+      background:#fff;
+    }
+    .start-home-row{
+      flex:1;
+      display:flex;
+      flex-direction:row;
+      align-items:stretch;
+      gap:clamp(16px,2.5vw,32px);
+      width:100%;
+      min-height:0;
+    }
+    .start-home-lb{
+      flex:0 0 clamp(268px,28vw,400px);
+      max-width:420px;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+      min-width:240px;
+    }
+    .start-home-lb-inner{
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .start-home-lb-scroll{
+      flex:1;
+      min-height:0;
+      overflow:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    /* Wall + categories as one cluster (narrow gap), centered in space after leaderboard */
+    .start-home-mid{
+      flex:1;
+      display:flex;
+      flex-direction:row;
+      align-items:center;
+      justify-content:center;
+      gap:clamp(14px,2vw,24px);
+      min-width:0;
+    }
+    .start-home-center{
+      flex:0 0 auto;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      gap:18px;
+      max-width:100%;
+      padding:8px 0 20px;
+      text-align:center;
+    }
+    .start-home-cats{
+      flex:0 0 clamp(188px,19vw,260px);
+      min-width:172px;
+      align-self:center;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+    }
+    @media (max-width:960px){
+      .start-home-row{flex-direction:column;align-items:stretch}
+      .start-home-lb{
+        flex:none;
+        max-width:none;
+        width:100%;
+        min-height:min(52vh,420px);
+      }
+      .start-home-mid{
+        flex-direction:column;
+        gap:20px;
+      }
+      .start-home-cats{
+        flex:none;
+        width:100%;
+        max-width:440px;
+        align-self:center;
+      }
+    }

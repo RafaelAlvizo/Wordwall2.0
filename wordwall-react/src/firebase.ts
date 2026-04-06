@@ -58,6 +58,33 @@ function normEmail(s) {
     .toLowerCase();
 }
 
+/** Public label for leaderboard: name fields first; else email local-part only (never full email). */
+function leaderboardDisplayName(data, docId) {
+  var d = data || {};
+  var candidates = [
+    d.fullName,
+    d.displayName,
+    d.userName,
+    d.username,
+    d.name,
+    d.nickname,
+  ];
+  for (var i = 0; i < candidates.length; i++) {
+    var s = candidates[i];
+    if (typeof s === 'string' && s.trim()) return s.trim();
+  }
+  var raw =
+    (typeof d.email === 'string' && d.email.trim()) ||
+    (String(docId || '').indexOf('@') !== -1 ? String(docId).trim() : '');
+  if (raw) {
+    var em = normEmail(raw);
+    var at = em.indexOf('@');
+    if (at > 0) return em.slice(0, at);
+    return em;
+  }
+  return null;
+}
+
 /** Single doc per user: externalApps/LANGUAGE/WordWall/UserDataWall/WordWallFile/{normalized-email} */
 function userDocIdFromEmail(email) {
   var em = normEmail(email);
@@ -160,6 +187,39 @@ window.fbResetPwd = function (email) {
 };
 window.fbAuthReady = function (cb) {
   return onAuthStateChanged(auth, cb);
+};
+
+/** All WordWall user docs with positive points, sorted by points descending. */
+window.fbGetLeaderboard = async function () {
+  try {
+    var colRef = collection(
+      db,
+      'externalApps',
+      'LANGUAGE',
+      'WordWall',
+      'UserDataWall',
+      'WordWallFile',
+    );
+    var snap = await getDocs(colRef);
+    var rows = [];
+    snap.forEach(function (docSnap) {
+      var d = docSnap.data() || {};
+      var pts = Number(d.points);
+      if (!Number.isFinite(pts) || pts <= 0) return;
+      var disp = leaderboardDisplayName(d, docSnap.id);
+      rows.push({
+        displayName: disp,
+        points: Math.floor(pts),
+      });
+    });
+    rows.sort(function (a, b) {
+      return b.points - a.points;
+    });
+    return rows;
+  } catch (e) {
+    console.error('fbGetLeaderboard', e);
+    return [];
+  }
 };
 
 window.fbGetProfile = async function (uid) {
