@@ -25,23 +25,70 @@ var LVEN  = ["Elementary","Middle School","High School","University / Bachelor's
    PHONETIC ENGINE  (unchanged from original)
    ═══════════════════════════════════════════════════════════ */
 var PHONEME_SUBS={
-  "en-US":[{from:/th/g,label:'TH→D (e.g. "the" as "de")',severity:"grave"},{from:/th/g,label:'TH→T (e.g. "think" as "tink")',severity:"grave"},{from:/v/g,label:'V→B (e.g. "very" as "bery")',severity:"moderado"},{from:/w/g,label:'W→V (e.g. "wine" as "vine")',severity:"moderado"},{from:/ng$/,label:'NG→N ending',severity:"leve"},{from:/r$/,label:"Dropped final R",severity:"leve"}],
-  "es-MX":[{from:/rr/g,label:"RR débil",severity:"moderado"},{from:/s$/,label:"S final omitida",severity:"leve"},{from:/b/g,label:"Confusión B/V",severity:"leve"}]
+  "en-US":[
+    {from:/th/g,label:'TH→D (e.g. "the" as "de")',severity:"grave"},
+    {from:/th/g,label:'TH→T (e.g. "think" as "tink")',severity:"grave"},
+    {from:/v/g,label:'V→B (e.g. "very" as "bery")',severity:"moderado"},
+    {from:/w/g,label:'W→V (e.g. "wine" as "vine")',severity:"moderado"},
+    {from:/ng$/,label:'NG→N ending',severity:"leve"},
+    {from:/r$/,label:"Dropped final R",severity:"leve"},
+    {from:/sh/g,label:'SH→CH (e.g. "she" as "che")',severity:"moderado"},
+    {from:/z/g,label:'Z→S (e.g. "zero" as "sero")',severity:"moderado"},
+    {from:/dg/g,label:'DG→Y (e.g. "judge" as "yudge")',severity:"moderado"},
+    {from:/^h/,label:'Dropped initial H (e.g. "have" as "ave")',severity:"leve"},
+    {from:/i/g,label:'Short I→EE (e.g. "sit" as "seat")',severity:"leve"},
+    {from:/ae/g,label:'A→E vowel shift',severity:"leve"}
+  ],
+  "es-MX":[
+    {from:/rr/g,label:"RR débil",severity:"moderado"},
+    {from:/s$/,label:"S final omitida",severity:"leve"},
+    {from:/b/g,label:"Confusión B/V",severity:"leve"},
+    {from:/j/g,label:"J suave",severity:"leve"},
+    {from:/ll/g,label:"LL→Y (yeísmo)",severity:"leve"},
+    {from:/d$/,label:"D final omitida",severity:"leve"},
+    {from:/c(?=[ei])/g,label:"C/S seseo",severity:"leve"}
+  ]
 };
-function metaphone(str){str=str.toLowerCase().replace(/[^a-z]/g,"").replace(/^ae|^gn|^kn|^pn|^wr/,"").replace(/mb$/,"m");var r="";for(var i=0;i<str.length;i++){var c=str[i],p=str[i-1]||"",n=str[i+1]||"",n2=str[i+2]||"";if("aeiou".indexOf(c)!==-1){if(i===0)r+=c;continue;}switch(c){case"b":if(p!=="m")r+="b";break;case"c":if(n==="h"){r+="x";i++;break;}if("ei".indexOf(n)!==-1){r+="s";break;}r+="k";break;case"d":if(n==="g"&&"eiy".indexOf(n2)!==-1){r+="j";i++;break;}r+="t";break;case"f":r+="f";break;case"g":if(n==="h"&&"aeiou".indexOf(n2)===-1)break;if("ei".indexOf(n)!==-1){r+="j";break;}if(n==="g")i++;r+="k";break;case"h":if("aeiou".indexOf(n)!==-1&&"aeiou".indexOf(p)===-1)r+="h";break;case"j":r+="j";break;case"k":if(p!=="c")r+="k";break;case"l":r+="l";break;case"m":r+="m";break;case"n":r+="n";break;case"p":r+=(n==="h")?"f":"p";break;case"q":r+="k";break;case"r":r+="r";break;case"s":if(n==="h"||(n==="i"&&"ao".indexOf(n2)!==-1)){r+="x";break;}if(str.slice(i,i+3)==="sch"){r+="sk";i+=2;break;}r+="s";break;case"t":if(n==="h"){r+="0";i++;break;}if(str.slice(i,i+3)==="tia"||str.slice(i,i+3)==="tio"){r+="x";break;}r+="t";break;case"v":r+="f";break;case"w":if("aeiou".indexOf(n)!==-1)r+="w";break;case"x":r+="ks";break;case"y":if("aeiou".indexOf(n)!==-1)r+="j";break;case"z":r+="s";break;}}return r;}
+function metaphone(str){str=str.toLowerCase().replace(/[^a-z]/g,"").replace(/^ae|^gn|^kn|^pn|^wr/,"").replace(/mb$/,"m");var r="";for(var i=0;i<str.length;i++){var c=str[i],p=str[i-1]||"",n=str[i+1]||"",n2=str[i+2]||"";if("aeiou".indexOf(c)!==-1){if(i===0)r+=c;continue;}switch(c){case"b":if(p!=="m")r+="b";break;case"c":if(n==="h"){r+="x";i++;break;}if("ei".indexOf(n)!==-1){r+="s";break;}r+="k";break;case"d":if(n==="g"&&"eiy".indexOf(n2)!==-1){r+="j";i++;break;}r+="t";break;case"f":r+="f";break;case"g":if(n==="h"&&"aeiou".indexOf(n2)===-1)break;if("ei".indexOf(n)!==-1){r+="j";break;}if(n==="g")i++;r+="k";break;case"h":if("aeiou".indexOf(n)!==-1&&"aeiou".indexOf(p)===-1)r+="h";break;case"j":r+="j";break;case"k":if(p!=="c")r+="k";break;case"l":r+="l";break;case"m":r+="m";break;case"n":r+="n";break;case"p":r+=(n==="h")?"f":"p";break;case"q":r+="k";break;case"r":r+="r";break;case"s":if(n==="h"||(n==="i"&&"ao".indexOf(n2)!==-1)){r+="x";break;}if(str.slice(i,i+3)==="sch"){r+="sk";i+=2;break;}r+="s";break;case"t":if(n==="h"){r+="0";i++;break;}if(str.slice(i,i+3)==="tia"||str.slice(i,i+3)==="tio"){r+="x";break;}r+="t";break;case"v":r+="f";break;case"w":if("aeiou".indexOf(n)!==-1)r+="w";break;case"x":r+="ks";break;case"y":if("aeiou".indexOf(n)!==-1)r+="j";break;case"z":r+="s";break;}}var _o="";for(var _d=0;_d<r.length;_d++){if(!_d||r[_d]!==r[_d-1])_o+=r[_d];}return _o;}
 function levenshtein(a,b){var m=a.length,n=b.length,i,j;var dp=[];for(i=0;i<=m;i++){dp[i]=[];for(j=0;j<=n;j++)dp[i][j]=i||j;}for(i=1;i<=m;i++)for(j=1;j<=n;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]:1+Math.min(dp[i-1][j],dp[i][j-1],dp[i-1][j-1]);return dp[m][n];}
 function syllableCount(word){word=word.toLowerCase().replace(/[^a-z]/g,"");if(!word)return 0;var v=word.match(/[aeiouy]+/g)||[];var c=v.length;if(word.charAt(word.length-1)==="e"&&c>1)c--;return Math.max(1,c);}
 function phNorm(text){return(text||"").toLowerCase().replace(/[àáâã]/g,"a").replace(/[èéêë]/g,"e").replace(/[ìíîï]/g,"i").replace(/[òóôõö]/g,"o").replace(/[ùúûü]/g,"u").replace(/ñ/g,"n").replace(/[^a-z\s]/g,"").trim();}
 function phWords(text){return phNorm(text).split(/\s+/).filter(Boolean);}
+function sttNorm(s){return phNorm(s).replace(/(.)\1+/g,"$1");}
+function vowelSig(s){return phNorm(s).replace(/[^aeiouy]/g,"");}
 function analyzePronunciation(target,spoken,lang){
   var tw=phWords(target),sw=phWords(spoken);
   var completeness=Math.min(100,Math.round((sw.length/Math.max(tw.length,1))*100));
-  var wr=tw.map(function(t,i){var s=sw[i]||"";var cd=levenshtein(t,s);var cs=Math.max(0,100-Math.round((cd/Math.max(t.length,1))*100));var tk=metaphone(t),sk=s?metaphone(s):"";var pd=levenshtein(tk,sk);var ps=tk.length>0?Math.max(0,100-Math.round((pd/tk.length)*100)):cs;var ts=syllableCount(t),ss2=s?syllableCount(s):0;var ys=Math.max(0,100-Math.abs(ts-ss2)*30);var eb=(phNorm(t)===phNorm(s))?8:0;if(!s)return{word:t,heard:"(omitida)",score:0,charScore:0,phonScore:0,sylScore:0,error:"Omisión",severity:"grave",phonemes:[]};var ws=Math.min(100,Math.round(ps*0.55+cs*0.30+ys*0.15+eb));var et=ws>=88?"None":ws>=65?"Mal pronunciada":ws>=40?"Distorsionada":"Incorrecta";var sev=ws>=80?"leve":ws>=50?"moderado":"grave";var ph=[];for(var j=0;j<Math.min(t.length,8);j++){var tc=t[j]||"",sc3=s[j]||"";ph.push({symbol:tc,score:tc===sc3?100:30,heard:sc3});}return{word:t,heard:s,score:ws,charScore:cs,phonScore:ps,sylScore:ys,error:et,severity:sev,phonemes:ph};});
+  var wr=tw.map(function(t,i){
+    var s=sw[i]||"";
+    if(!s)return{word:t,heard:"(omitida)",score:0,charScore:0,phonScore:0,sylScore:0,error:"Omisión",severity:"grave",phonemes:[]};
+    var cd=levenshtein(t,s);
+    var csDiv=Math.max(t.length,s.length,1);
+    var cs=Math.max(0,100-Math.round((cd/csDiv)*80));
+    var tk=metaphone(t),sk=metaphone(s);
+    var pd=levenshtein(tk,sk);
+    var psDiv=Math.max(tk.length,sk.length,1);
+    var ps=psDiv>0?Math.max(0,100-Math.round((pd/psDiv)*80)):cs;
+    var ts=syllableCount(t),ss2=syllableCount(s);
+    var ys=Math.max(0,100-Math.abs(ts-ss2)*30);
+    var eb=(phNorm(t)===phNorm(s))?10:(sttNorm(t)===sttNorm(s)&&sttNorm(t).length>0)?7:0;
+    var ws=Math.min(100,Math.round(ps*0.50+cs*0.25+ys*0.15+eb));
+    var vt=vowelSig(t),vs2=vowelSig(s);
+    if(vt!==vs2&&vt.length>0)ws=Math.max(0,ws-8);
+    if(sttNorm(t)===sttNorm(s)&&sttNorm(t).length>0)ws=Math.max(ws,95);
+    var et=ws>=88?"None":ws>=65?"Mal pronunciada":ws>=40?"Distorsionada":"Incorrecta";
+    var sev=ws>=80?"leve":ws>=50?"moderado":"grave";
+    var ph=[];for(var j=0;j<Math.min(t.length,8);j++){var tc=t[j]||"",sc3=s[j]||"";ph.push({symbol:tc,score:tc===sc3?100:30,heard:sc3});}
+    return{word:t,heard:s,score:ws,charScore:cs,phonScore:ps,sylScore:ys,error:et,severity:sev,phonemes:ph};
+  });
   var ins=sw.slice(tw.length);
   var acc=wr.length?Math.round(wr.reduce(function(x,w){return x+w.score;},0)/wr.length):0;
   var wc=tw.length,sc4=sw.length;var wr2=wc>0?Math.min(sc4/wc,wc/Math.max(sc4,1)):0;var fl=Math.round(Math.min(100,wr2*70+acc*0.30));
-  var tk2=metaphone(phNorm(target)),sk2=metaphone(phNorm(spoken));var gd=levenshtein(tk2,sk2);var ph2=tk2.length>0?Math.max(0,Math.round(100-(gd/tk2.length)*100)):(phNorm(target)===phNorm(spoken)?100:0);
-  var ov=Math.max(0,Math.min(100,Math.round(acc*0.50+fl*0.15+completeness*0.15+ph2*0.20)));
+  var tk2=metaphone(phNorm(target)),sk2=metaphone(phNorm(spoken));var gd=levenshtein(tk2,sk2);
+  var phDiv2=Math.max(tk2.length,sk2.length,1);
+  var ph2=phDiv2>0?Math.max(0,Math.round(100-(gd/phDiv2)*80)):(phNorm(target)===phNorm(spoken)?100:0);
+  var ov=Math.max(0,Math.min(100,Math.round(acc*0.45+fl*0.15+completeness*0.15+ph2*0.25)));
+  if(sttNorm(target)===sttNorm(spoken)&&sttNorm(target).length>0){ov=Math.max(ov,95);acc=Math.max(acc,95);}
   var errs=[];wr.forEach(function(w){if(w.error==="Omisión"){errs.push({text:'La palabra "'+w.word+'" no fue pronunciada.',severity:"grave"});}else if(w.error!=="None"&&w.score<75){errs.push({text:'"'+w.word+'" → "'+w.heard+'" — '+(w.charScore<50?"Muy diferente":w.phonScore<60?"Discrepancia fonética":"Leve error")+'. '+w.score+'/100.',severity:w.severity});}});
   ins.forEach(function(iw){errs.push({text:'Palabra extra: "'+iw+'".',severity:"leve"});});
   var subs=PHONEME_SUBS[lang]||PHONEME_SUBS["en-US"]||[];var spN=phNorm(spoken),tgN=phNorm(target);
@@ -461,8 +508,12 @@ var NUM_WORDS_EN={"0":"zero","1":"one","2":"two","3":"three","4":"four","5":"fiv
 var NUM_WORDS_ES={"0":"cero","1":"uno","2":"dos","3":"tres","4":"cuatro","5":"cinco","6":"seis","7":"siete","8":"ocho","9":"nueve","10":"diez","11":"once","12":"doce","13":"trece","14":"catorce","15":"quince","16":"dieciseis","17":"diecisiete","18":"dieciocho","19":"diecinueve","20":"veinte"};
 function normalizeDigitTranscript(spoken,sLang){
   if(!spoken)return "";
+  var s=spoken;
   var map=sLang==="es-MX"?NUM_WORDS_ES:NUM_WORDS_EN;
-  return spoken.replace(/\b\d+\b/g,function(m){return map[m]||m;});
+  s=s.replace(/\b\d+\b/g,function(m){return map[m]||m;});
+  s=s.replace(/[.,!?;:…"""'''`\-]+/g," ");
+  s=s.replace(/\s+/g," ").trim();
+  return s;
 }
 function ScoreRing(p){var color=scoreColor(p.value);var r=44,circ=2*Math.PI*r;var dash=(p.value/100)*circ;return(<div className="ph-ring-wrap"><svg width="110" height="110" viewBox="0 0 110 110"><circle cx="55" cy="55" r={r} fill="none" stroke="#f0f0f0" strokeWidth="9"/><circle cx="55" cy="55" r={r} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round" strokeDasharray={dash+" "+(circ-dash)} style={{transition:"stroke-dasharray 0.8s cubic-bezier(.4,0,.2,1)"}}/></svg><div className="ph-ring-inner"><span className="ph-ring-val" style={{color:color}}>{p.value}</span><span className="ph-ring-sub">/100</span></div></div>);}
 
@@ -1454,16 +1505,20 @@ function Game(p){
     bestAltRef.current="";
     var rec=new SR();
     l3RecRef.current=rec;
-    rec.lang=speechLang;rec.interimResults=false;rec.maxAlternatives=5;
+    rec.lang=speechLang;rec.interimResults=true;rec.maxAlternatives=10;rec.continuous=false;
     setL3Listen(true);setL3Timer(TMAX_L23);
     rec.onresult=function(ev){
-      var bAlt="";var bScore=-1;
-      for(var i=0;i<ev.results[0].length;i++){
-        var alt=normalizeDigitTranscript(ev.results[0][i].transcript,speechLang);
-        var tmp=analyzePronunciation(curAtTap.targetWord,alt,speechLang);
-        if(tmp.overall>bScore){bScore=tmp.overall;bAlt=alt;}
+      var bAlt=bestAltRef.current;var bScore=-1;
+      for(var ri=0;ri<ev.results.length;ri++){
+        for(var ai=0;ai<ev.results[ri].length;ai++){
+          var alt=normalizeDigitTranscript(ev.results[ri][ai].transcript,speechLang);
+          if(!alt)continue;
+          var tmp=analyzePronunciation(curAtTap.targetWord,alt,speechLang);
+          var sc=tmp.overall+(ev.results[ri][ai].confidence||0)*3;
+          if(sc>bScore){bScore=sc;bAlt=alt;}
+        }
       }
-      bestAltRef.current=bAlt;
+      if(bAlt)bestAltRef.current=bAlt;
     };
     rec.onend=function(){
       l3RecRef.current=null;clrL3T();setL3Listen(false);setL3Timer(TMAX_L23);
