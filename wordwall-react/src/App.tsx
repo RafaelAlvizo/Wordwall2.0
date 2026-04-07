@@ -2114,9 +2114,9 @@ function Game(p){
               <div style={{width:"100%",border:"1px solid #eee",borderRadius:"14px",padding:"12px 14px",background:"#fff"}}>
                 <div style={{fontFamily:QF,fontSize:"11px",letterSpacing:".08em",textTransform:"uppercase",color:l3fb.correct?"#16a34a":"#dc2626"}}>{l3fb.correct?(lang==="EN"?"Correct":"Correcto"):(l3fb.skipped?(lang==="EN"?"Skipped":"Omitida"):(lang==="EN"?"Not quite":"Casi"))}</div>
                 {l3fb.retry&&typeof l3fb.triesLeft==="number"?(<div style={{fontFamily:QF,fontSize:"12px",color:"#d97706",marginTop:"6px",fontWeight:"700"}}>{g.l3RetryHint(l3fb.triesLeft)}</div>):null}
+                {l3WaitContinue?(<RoundBtn onClick={applyL3WordComplete} filled style={{marginTop:"12px",width:"100%",fontSize:"14px",padding:"12px 18px",background:"#0d9488",borderColor:"#0d9488"}}>{g.l3continueNext}</RoundBtn>):null}
                 <div style={{fontFamily:QF,fontSize:"12px",color:"#555",marginTop:"6px"}}>{lang==="EN"?"Heard: ":"Escuchó: "}<b>{l3fb.heard||"—"}</b></div>
                 <div style={{fontFamily:QF,fontSize:"12px",color:"#555",marginTop:"4px"}}>{lang==="EN"?"Target: ":"Meta: "}<b>{cur3.targetWord}</b></div>
-                {l3WaitContinue?(<RoundBtn onClick={applyL3WordComplete} filled style={{marginTop:"14px",width:"100%",fontSize:"14px",padding:"12px 18px",background:"#0d9488",borderColor:"#0d9488"}}>{g.l3continueNext}</RoundBtn>):null}
               </div>
             ):null}
           </div>
@@ -2662,6 +2662,13 @@ function Game(p){
                     </div>
                   </div>
                 </div>
+                {l3fb.retry&&!l3WaitContinue?(
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",width:"100%"}}>
+                    <RoundBtn onClick={toggleL3Recording} filled style={{fontSize:"13px",padding:"12px 22px"}}>{l3listen?g.l3listening:g.l3relisten}</RoundBtn>
+                    <span style={{fontFamily:QF,fontSize:"10px",color:"#94a3b8",textAlign:"center"}}>{l3listen?g.l3tapStop:g.l3relistenHint}</span>
+                  </div>
+                ):null}
+                {l3WaitContinue?(<RoundBtn onClick={applyL3WordComplete} filled style={{width:"100%",fontSize:"14px",padding:"12px 18px"}}>{g.l3continueNext}</RoundBtn>):null}
                 {l3fb.heard?(<div style={{padding:"8px 14px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}><span style={{fontFamily:QF,fontSize:"11px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{g.l3heard+" "}</span><span style={{fontFamily:QF,fontSize:"14px",color:"#555",fontStyle:"italic"}}>"{l3fb.heard}"</span></div>):null}
                 <div style={{padding:"10px 16px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee",textAlign:"center"}}>
                   {l3fb.diff.map(function(d,i){return(<span key={i} className={d.ok?"char-ok":"char-bad"} style={{fontFamily:QF,fontSize:"22px",letterSpacing:".08em"}}>{d.c}</span>);})}
@@ -2671,13 +2678,6 @@ function Game(p){
                     {l3fb.analysis.errors.slice(0,2).map(function(e,ei){var bc=e.severity==="grave"?"#dc2626":e.severity==="moderado"?"#ea580c":"#d97706";return(<div key={ei} className="ph-err-row" style={{borderLeftColor:bc}}><span className="ph-err-sev" style={{color:bc}}>{e.severity}</span><span>{e.text}</span></div>);})}
                   </div>
                 ):null}
-                {l3fb.retry&&!l3WaitContinue?(
-                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"8px",marginTop:"6px"}}>
-                    <RoundBtn onClick={toggleL3Recording} filled style={{fontSize:"13px",padding:"12px 22px"}}>{l3listen?g.l3listening:g.l3relisten}</RoundBtn>
-                    <span style={{fontFamily:QF,fontSize:"10px",color:"#94a3b8",textAlign:"center"}}>{l3listen?g.l3tapStop:g.l3relistenHint}</span>
-                  </div>
-                ):null}
-                {l3WaitContinue?(<RoundBtn onClick={applyL3WordComplete} filled style={{marginTop:"10px",width:"100%",fontSize:"14px",padding:"12px 18px"}}>{g.l3continueNext}</RoundBtn>):null}
               </div>
             )}
           </div>
