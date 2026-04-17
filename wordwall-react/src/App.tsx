@@ -527,7 +527,7 @@ function ProgressDots(p){
 /* ═══════════════════════════════════════════════════════════
    SPLASH
    ═══════════════════════════════════════════════════════════ */
-function Splash(p){useEffect(function(){var t=setTimeout(function(){p.onDone();},1700);return function(){clearTimeout(t);};},[]);return(<div className="splash"><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"10px"}}><div style={{fontFamily:QF,fontWeight:"900",fontSize:"64px",letterSpacing:".08em",lineHeight:"1",textTransform:"uppercase"}}>Wordwall</div><div style={{fontFamily:QF,fontWeight:"700",fontSize:"20px",letterSpacing:".18em",color:"#666",textTransform:"uppercase"}}>by Monexus</div></div></div>);}
+function Splash(p){useEffect(function(){var t=setTimeout(function(){p.onDone();},1700);return function(){clearTimeout(t);};},[]);return(<div className="splash"><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"10px"}}><div className="splash-title" style={{fontFamily:QF,fontWeight:"900",fontSize:"64px",letterSpacing:".08em",lineHeight:"1",textTransform:"uppercase"}}>Wordwall</div><div className="splash-sub" style={{fontFamily:QF,fontWeight:"700",fontSize:"20px",letterSpacing:".18em",color:"#666",textTransform:"uppercase"}}>by Monexus</div></div></div>);}
 
 /* ═══════════════════════════════════════════════════════════
    LOGIN  (unchanged)
@@ -1840,7 +1840,7 @@ function Game(p){
     var subLine="sub" in hp?hp.sub:getCatName();
     var catName=getCatName();
     var showCatPill=!("sub" in hp);
-    return(<div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"3px",maxWidth:"960px",width:"100%",alignSelf:"center"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><span className="lvl-badge" style={{background:hp.color||"#000",color:"#fff"}}>{hp.badge}</span><div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{hp.title}</h1>{showCatPill?(<span style={{display:"inline-block",marginTop:"3px",padding:"2px 10px",borderRadius:"50px",background:hp.color?hp.color+"18":"#f5f5f5",border:"1.5px solid "+(hp.color||"#ccc"),fontFamily:QF,fontSize:"10px",fontWeight:"700",letterSpacing:".08em",textTransform:"uppercase",color:hp.color||"#555"}}>{catName}</span>):(<div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase",marginTop:"1px"}}>{subLine}</div>)}</div></div><DashBackBtn onClick={goDashboard} label={g.exerciseBack}/></div>);
+    return(<div className="game-top-bar" style={{marginBottom:"3px",maxWidth:"960px",width:"100%",alignSelf:"center"}}><div style={{display:"flex",alignItems:"center",gap:"10px"}}><span className="lvl-badge" style={{background:hp.color||"#000",color:"#fff"}}>{hp.badge}</span><div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{hp.title}</h1>{showCatPill?(<span style={{display:"inline-block",marginTop:"3px",padding:"2px 10px",borderRadius:"50px",background:hp.color?hp.color+"18":"#f5f5f5",border:"1.5px solid "+(hp.color||"#ccc"),fontFamily:QF,fontSize:"10px",fontWeight:"700",letterSpacing:".08em",textTransform:"uppercase",color:hp.color||"#555"}}>{catName}</span>):(<div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase",marginTop:"1px"}}>{subLine}</div>)}</div></div><div className="game-top-bar__actions"><DashBackBtn onClick={goDashboard} label={g.exerciseBack}/></div></div>);
   }
 
   function Pbar(pp){
@@ -1935,7 +1935,7 @@ function Game(p){
     return(
       <>
       <div className="groot">
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"3px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
+        <div className="game-top-bar" style={{marginBottom:"3px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
             <span className="lvl-badge" style={{background:"#0d9488",color:"#fff"}}>{lang==="EN"?"ASSESS":"EVAL"}</span>
             <div>
@@ -1945,7 +1945,7 @@ function Game(p){
               </div>
             </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+          <div className="game-top-bar__actions">
             <span style={{fontFamily:QF,fontSize:"14px",fontWeight:"700"}}>{"⭐ "+score+" "+g.pts}</span>
             <button onClick={function(){if(screen==="asPlaying"){clrT();setScreen("asPaused");}else if(screen==="asPaused"){setFb(null);setScreen("asPlaying");}}} style={{width:"38px",height:"38px",borderRadius:"50%",background:"#fff",color:"#000",border:"2px solid #000",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px"}}>{pausedA?"▶":"⏸"}</button>
             {asDemo?(
@@ -1955,7 +1955,7 @@ function Game(p){
           </div>
         </div>
         <Pbar cur={qi+(fb!==null?1:0)} total={sessW.length} c1="#0f766e" c2="#14b8a6"/>
-        <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",display:"grid",gridTemplateColumns:"minmax(400px, 44%) 1fr",gap:"24px",alignItems:"start",marginTop:"10px"}}>
+        <div className="game-split" style={{maxWidth:"960px",width:"100%",alignSelf:"center",marginTop:"10px"}}>
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
             <Wall brickData={bDataA} curQ={qi} playing={!pausedA}/>
             <div style={{marginTop:"10px"}}>
@@ -1975,7 +1975,7 @@ function Game(p){
                 <RoundBtn onClick={function(){setFb(null);setScreen("asPlaying");}} filled style={{fontSize:"14px",padding:"12px 36px",marginTop:"10px"}}>{"▶ "+g.resumeTxt}</RoundBtn>
               </div>
             ):(
-              <div style={{display:"grid",gridTemplateColumns:"repeat(2, minmax(0, 1fr))",gap:"10px"}}>
+              <div className="mc-grid" style={{gap:"10px"}}>
                 {curQ.options.map(function(o,i){
                   var isSel=sel===o;
                   var isOk=fb==="ok"&&isSel;
@@ -2020,7 +2020,7 @@ function Game(p){
             <button type="button" onClick={skipDemoSection} style={{padding:"7px 14px",borderRadius:"50px",background:"#fff",border:"2px solid #000",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",color:"#000",letterSpacing:".06em"}}>{g.demoSkipSection}</button>
           </div>
         ):null}
-        <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",display:"grid",gridTemplateColumns:"minmax(400px, 44%) 1fr",gap:"24px",alignItems:"start",marginTop:"10px"}}>
+        <div className="game-split" style={{maxWidth:"960px",width:"100%",alignSelf:"center",marginTop:"10px"}}>
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
             <Wall brickData={bDataA2} curQ={l2qi} playing={true}/>
             <div style={{marginTop:"10px"}}>
@@ -2122,7 +2122,7 @@ function Game(p){
           <button type="button" onClick={pauseL3Exercise} style={{padding:"7px 16px",borderRadius:"50px",background:"#fff",color:"#000",border:"2px solid #000",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em"}}>{g.pauseTxt}</button>
         </div>
         <Pbar cur={l3ProgBarAs} total={sessW.length} c1="#0f766e" c2="#14b8a6"/>
-        <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",display:"grid",gridTemplateColumns:"minmax(400px, 44%) 1fr",gap:"24px",alignItems:"start",marginTop:"10px"}}>
+        <div className="game-split" style={{maxWidth:"960px",width:"100%",alignSelf:"center",marginTop:"10px"}}>
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
             <Wall brickData={bDataA3} curQ={l3qi} playing={!l3listen&&!l3WaitContinue}/>
             <div style={{marginTop:"10px"}}>
@@ -2238,12 +2238,12 @@ function Game(p){
     return(
       <>
       <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",padding:"16px 20px",background:"#fff",overflowY:"auto"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px",maxWidth:"600px",width:"100%",alignSelf:"center"}}>
+        <div className="game-top-bar" style={{marginBottom:"16px",maxWidth:"600px",width:"100%",alignSelf:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
             <span className="lvl-badge" style={{background:"#0d9488",color:"#fff"}}>{g.assessBadge}</span>
             <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"20px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.assessEndTitle}</h1><div style={{fontFamily:QF,fontSize:"9px",color:asDemo?"#0d9488":"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{asDemo?(asDemoLiveList?g.assessDemoLiveBanner:g.assessDemoBanner):g.assessSub}</div></div>
           </div>
-          <DashBackBtn onClick={goDashboard} label={g.exerciseBack}/>
+          <div className="game-top-bar__actions"><DashBackBtn onClick={goDashboard} label={g.exerciseBack}/></div>
         </div>
         <div style={{maxWidth:"600px",width:"100%",alignSelf:"center"}}>
           <div style={{textAlign:"center",marginBottom:"20px",padding:"20px",border:"3px solid "+(aspct>=80?"#16a34a":aspct>=60?"#d97706":"#dc2626"),borderRadius:"20px",background:aspct>=80?"#f0faf4":aspct>=60?"#fffbeb":"#fff8f8"}}>
@@ -2494,16 +2494,16 @@ function Game(p){
     var correct=corrList.length;
     return(
       <>
-      <div style={{height:"100vh",display:"flex",flexDirection:"column",padding:"10px 16px",background:"#fff",overflow:"hidden"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"6px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
+      <div className="results-view">
+        <div className="game-top-bar" style={{marginBottom:"6px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
             <span className="lvl-badge" style={{background:"#000",color:"#fff"}}>NIVEL 1</span>
             <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"18px",letterSpacing:".12em",textTransform:"uppercase",lineHeight:1.1}}>{g.endTitle}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{getCatName()}</div></div>
           </div>
-          <DashBackBtn onClick={goDashboard} label={g.exerciseBack}/>
+          <div className="game-top-bar__actions"><DashBackBtn onClick={goDashboard} label={g.exerciseBack}/></div>
         </div>
-        <div style={{display:"flex",gap:"20px",maxWidth:"960px",width:"100%",alignSelf:"center",alignItems:"flex-start",flex:1,overflow:"hidden"}}>
-          <div style={{flex:1,minWidth:0}}>
+        <div className="exercise-split" style={{gap:"20px",maxWidth:"960px",width:"100%",alignSelf:"center",alignItems:"flex-start",flex:1,overflow:"hidden"}}>
+          <div className="exercise-results-col">
             <Wall brickData={bData} curQ={-1} playing={false}/>
             <div style={{marginTop:"10px",padding:"10px 14px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
               <div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",letterSpacing:".1em",textTransform:"uppercase",marginBottom:"8px"}}>{g.verifiedLbl}: {verified}/10</div>
@@ -2517,12 +2517,12 @@ function Game(p){
               })}
             </div>
           </div>
-          <div style={{flex:1,maxWidth:"280px",overflowY:"auto"}}>
+          <div className="exercise-panel" style={{flex:1,maxWidth:"280px",overflowY:"auto"}}>
             <div style={{textAlign:"center",marginBottom:"10px",padding:"12px",border:"2px solid #000",borderRadius:"16px"}}>
               <div style={{fontFamily:QF,fontSize:"48px",fontWeight:"900",lineHeight:1}}>{score}</div>
               <div style={{fontFamily:QF,fontSize:"10px",color:"#777",letterSpacing:".12em",marginTop:"3px",textTransform:"uppercase"}}>PUNTOS</div>
             </div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px",marginBottom:"10px"}}>
+            <div className="mc-grid" style={{gap:"6px",marginBottom:"10px"}}>
               {[[correct,g.corrTxt],[sessW.length-correct,g.errTxt]].map(function(it){return(<div key={it[1]} style={{textAlign:"center",padding:"8px 4px",border:"1px solid #eee",borderRadius:"10px"}}><div style={{fontFamily:QF,fontSize:"22px",fontWeight:"700"}}>{it[0]}</div><div style={{fontFamily:QF,fontSize:"9px",color:"#777",letterSpacing:".06em",marginTop:"2px",textTransform:"uppercase"}}>{it[1]}</div></div>);})}
             </div>
             <div style={{display:"flex",gap:"6px",flexDirection:"column"}}>
@@ -2568,7 +2568,7 @@ function Game(p){
           <button type="button" onClick={pauseL2Exercise} style={{padding:"7px 16px",borderRadius:"50px",background:"#fff",color:"#000",border:"2px solid #000",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em"}}>{g.pauseTxt}</button>
         </div>
         <Pbar cur={l2qi+(l2fb!==null?1:0)} c1="#1e40af" c2="#3b82f6"/>
-        <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",display:"grid",gridTemplateColumns:"minmax(400px, 44%) 1fr",gap:"24px",alignItems:"start",marginTop:"10px"}}>
+        <div className="game-split" style={{maxWidth:"960px",width:"100%",alignSelf:"center",marginTop:"10px"}}>
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
             <Wall brickData={catWall2} curQ={curBrick2} playing={true}/>
             <div style={{marginTop:"10px"}}>
@@ -2606,12 +2606,12 @@ function Game(p){
     var bData2=getCatBrickData(catIdx,wordProg,corrList);
     return(
       <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",padding:"16px 20px",background:"#fff",overflowY:"auto"}}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"16px",maxWidth:"600px",width:"100%",alignSelf:"center"}}>
+        <div className="game-top-bar" style={{marginBottom:"16px",maxWidth:"600px",width:"100%",alignSelf:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
             <span className="lvl-badge" style={{background:"#1d4ed8",color:"#fff"}}>{g.l2badge}</span>
             <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"20px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.l2endTitle}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{getCatName()}</div></div>
           </div>
-          <DashBackBtn onClick={goDashboard} label={g.exerciseBack}/>
+          <div className="game-top-bar__actions"><DashBackBtn onClick={goDashboard} label={g.exerciseBack}/></div>
         </div>
         <div style={{maxWidth:"600px",width:"100%",alignSelf:"center"}}>
           <div style={{textAlign:"center",marginBottom:"20px",padding:"20px",border:"3px solid "+(l2pct>=80?"#16a34a":l2pct>=60?"#d97706":"#dc2626"),borderRadius:"20px",background:l2pct>=80?"#f0faf4":l2pct>=60?"#fffbeb":"#fff8f8"}}>
@@ -2650,7 +2650,7 @@ function Game(p){
           <button type="button" onClick={pauseL3Exercise} style={{padding:"7px 16px",borderRadius:"50px",background:"#fff",color:"#000",border:"2px solid #000",cursor:"pointer",fontFamily:QF,fontSize:"11px",fontWeight:"700",letterSpacing:".08em"}}>{g.pauseTxt}</button>
         </div>
         <Pbar cur={l3ProgBarWall} c1="#6d28d9" c2="#a78bfa"/>
-        <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",display:"grid",gridTemplateColumns:"minmax(400px, 44%) 1fr",gap:"24px",alignItems:"start",marginTop:"10px"}}>
+        <div className="game-split" style={{maxWidth:"960px",width:"100%",alignSelf:"center",marginTop:"10px"}}>
           <div style={{flex:"0 0 auto",width:"100%",minWidth:0}}>
             <Wall brickData={catWall3} curQ={curBrick3} playing={!l3listen&&!l3WaitContinue}/>
             <div style={{marginTop:"10px"}}>
@@ -2750,12 +2750,12 @@ function Game(p){
     return(
       <>
       <div className="groot">
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"2px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
+        <div className="game-top-bar" style={{marginBottom:"2px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
           <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
             <span className="lvl-badge" style={{background:"#0d9488",color:"#fff"}}>{g.demoMcBadge}</span>
             <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.demoMcHead}</h1><div style={{fontFamily:QF,fontSize:"9px",color:"#0d9488",letterSpacing:".08em",textTransform:"uppercase"}}>{demoSubBanner}</div></div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+          <div className="game-top-bar__actions">
             <span style={{fontFamily:QF,fontSize:"14px",fontWeight:"700"}}>{"⭐ "+score+" "+g.pts}</span>
             <button onClick={function(){if(screen==="demoMcPlay"){clrT();setScreen("demoMcPaused");}else if(screen==="demoMcPaused"){setFb(null);setScreen("demoMcPlay");}}} style={{width:"38px",height:"38px",borderRadius:"50%",background:"#fff",color:"#000",border:"2px solid #000",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px"}}>{pausedD?"▶":"⏸"}</button>
             <DashBackBtn onClick={goDashboard} label={g.exerciseBack}/>
@@ -2764,15 +2764,15 @@ function Game(p){
         <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",marginBottom:"3px"}}>
           <Pbar cur={qi+(fb!==null?1:0)} total={sessW.length} c1="#0f766e" c2="#14b8a6"/>
         </div>
-        <div style={{display:"flex",gap:"24px",maxWidth:"960px",width:"100%",alignSelf:"center",alignItems:"flex-start",flex:1,overflow:"hidden"}}>
-          <div style={{flex:"1.2 1 0",minWidth:"380px",marginTop:"18px"}}>
+        <div className="exercise-split" style={{maxWidth:"960px",width:"100%",alignSelf:"center",alignItems:"flex-start",flex:1,overflow:"hidden"}}>
+          <div className="exercise-wall-col" style={{marginTop:"18px"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
               <span style={{fontFamily:QF,fontSize:"11px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>{g.demoMcWallLbl}</span>
               <span style={{fontFamily:QF,fontSize:"11px",color:"#aaa"}}>{g.qLbl+" "+(qi+1)+" "+g.ofLbl+" "+sessW.length}</span>
             </div>
             <Wall brickData={bDataD} curQ={qi} playing={!pausedD}/>
           </div>
-          <div style={{flex:"1 1 0",minWidth:0}}>
+          <div className="exercise-panel">
             {pausedD?(
               <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"14px",border:"2px dashed #ccc",borderRadius:"20px",padding:"32px 20px"}}>
                 <div style={{fontFamily:QF,fontSize:"18px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase"}}>{g.pauseMsg}</div>
@@ -2800,7 +2800,7 @@ function Game(p){
                   {fb==="wrong"?("✗ "+g.wrongTxt+" "+curQD.targetWord):null}
                   {fb==="timeout"?("⏱ "+g.toTxt+" "+curQD.targetWord):null}
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px"}}>
+                <div className="mc-grid">
                   {curQD.options.map(function(opt){
                     var isCorrect=opt===curQD.targetWord;var isSel=sel===opt;
                     var bg="#fff",cl="#000",bd="2px solid #0d9488";
@@ -2863,12 +2863,12 @@ function Game(p){
   return(
     <>
     <div className="groot">
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"2px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
+      <div className="game-top-bar" style={{marginBottom:"2px",maxWidth:"960px",width:"100%",alignSelf:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
           <span className="lvl-badge" style={{background:"#000",color:"#fff"}}>NIVEL 1</span>
           <div><h1 style={{fontFamily:QF,fontWeight:"900",fontSize:"17px",letterSpacing:".1em",textTransform:"uppercase",lineHeight:1.1}}>{g.title}</h1><span style={{display:"inline-block",marginTop:"3px",padding:"2px 10px",borderRadius:"50px",background:"#f5f5f5",border:"1.5px solid #ccc",fontFamily:QF,fontSize:"10px",fontWeight:"700",letterSpacing:".08em",textTransform:"uppercase",color:"#555"}}>{getCatName()}</span></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+        <div className="game-top-bar__actions">
           <span style={{fontFamily:QF,fontSize:"14px",fontWeight:"700"}}>{"⭐ "+score+" "+g.pts}</span>
           <button onClick={function(){if(screen==="playing"){clrT();setScreen("paused");}else if(screen==="paused"){setFb(null);setScreen("playing");}}} style={{width:"38px",height:"38px",borderRadius:"50%",background:"#fff",color:"#000",border:"2px solid #000",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"14px"}}>{paused?"▶":"⏸"}</button>
           <DashBackBtn onClick={goDashboard} label={g.exerciseBack}/>
@@ -2877,9 +2877,9 @@ function Game(p){
       <div style={{maxWidth:"960px",width:"100%",alignSelf:"center",marginBottom:"3px"}}>
         <Pbar cur={qi+(fb!==null?1:0)} c1="#a83b1a" c2="#e8633a"/>
       </div>
-      <div style={{display:"flex",gap:"24px",maxWidth:"960px",width:"100%",alignSelf:"center",alignItems:"flex-start",flex:1,overflow:"hidden"}}>
+      <div className="exercise-split" style={{maxWidth:"960px",width:"100%",alignSelf:"center",alignItems:"flex-start",flex:1,overflow:"hidden"}}>
         {/* Left: wall */}
-        <div style={{flex:"1.2 1 0",minWidth:"380px",marginTop:"18px"}}>
+        <div className="exercise-wall-col" style={{marginTop:"18px"}}>
           <div style={{display:"flex",justifyContent:"space-between",marginBottom:"4px"}}>
             <span style={{fontFamily:QF,fontSize:"11px",color:"#aaa",letterSpacing:".08em",textTransform:"uppercase"}}>MURO</span>
             <span style={{fontFamily:QF,fontSize:"11px",color:"#aaa"}}>{g.qLbl+" "+(qi+1)+" "+g.ofLbl+" "+sessW.length}</span>
@@ -2887,7 +2887,7 @@ function Game(p){
           <Wall brickData={bData3} curQ={curBrick} playing={!paused}/>
         </div>
         {/* Right: question */}
-        <div style={{flex:"1 1 0",minWidth:0}}>
+        <div className="exercise-panel">
           {paused?(
             <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:"14px",border:"2px dashed #ccc",borderRadius:"20px",padding:"32px 20px"}}>
               <div style={{fontFamily:QF,fontSize:"18px",fontWeight:"700",letterSpacing:".1em",textTransform:"uppercase"}}>{g.pauseMsg}</div>
@@ -2919,7 +2919,7 @@ function Game(p){
                 {fb==="timeout"?("⏱ "+g.toTxt+" "+curQ.targetWord):null}
               </div>
               {/* Options — 2 columns, up to 10 buttons */}
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"5px"}}>
+              <div className="mc-grid">
                 {curQ.options.map(function(opt,oi){
                   var isCorrect=opt===curQ.targetWord;var isSel=sel===opt;
                   var bg="#fff",cl="#000",bd="2px solid #000";
