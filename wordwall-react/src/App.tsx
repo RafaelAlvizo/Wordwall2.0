@@ -1423,22 +1423,34 @@ function Game(p){
 
   /* ════════════ LEVEL 3 ════════════ */
   function requestMicOnce(cb){
-    if(micStreamRef.current&&micStreamRef.current.active){cb();return;}
-    navigator.mediaDevices.getUserMedia({audio:true,video:false})
-      .then(function(stream){micStreamRef.current=stream;cb();})
-      .catch(function(err){console.warn("Mic:",err);setL3Sup(false);});
+    var fn=typeof cb==="function"?cb:function(){};
+    if(micStreamRef.current&&micStreamRef.current.active){fn();return;}
+    try{
+      if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+        fn();
+        return;
+      }
+      navigator.mediaDevices.getUserMedia({audio:true,video:false})
+        .then(function(stream){micStreamRef.current=stream;fn();})
+        .catch(function(err){console.warn("Mic:",err);fn();});
+    }catch(e){
+      console.warn("Mic:",e);
+      fn();
+    }
   }
   function startL3(){
     l3SessionKindRef.current="wall";
     l3FailCountRef.current=0;l3PendingNewResRef.current=null;l3WaitContRef.current=false;setL3WaitContinue(false);
     setL3Qi(0);setL3Listen(false);setL3Fb(null);setL3Res([]);setL3Timer(TMAX_L23);
-    requestMicOnce(function(){setScreen("l3instructions");});
+    setScreen("l3instructions");
+    requestMicOnce(function(){});
   }
   function startAsL3(){
     l3SessionKindRef.current="assess";
     l3FailCountRef.current=0;l3PendingNewResRef.current=null;l3WaitContRef.current=false;setL3WaitContinue(false);
     setL3Qi(0);setL3Listen(false);setL3Fb(null);setL3Res([]);setL3Timer(TMAX_L23);
-    requestMicOnce(function(){setScreen("asL3play");});
+    setScreen("asL3play");
+    requestMicOnce(function(){});
   }
   function pauseL3Exercise(){
     stopL3Recognizer();
