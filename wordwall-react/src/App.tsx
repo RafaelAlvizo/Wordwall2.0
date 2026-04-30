@@ -1520,15 +1520,15 @@ function Game(p){
     rec.lang=speechLang;rec.interimResults=true;rec.maxAlternatives=10;rec.continuous=false;
     setL3Listen(true);setL3Timer(TMAX_L23);
     rec.onresult=function(ev){
-      var bAlt=bestAltRef.current;var bScore=-1;
+      var bAlt=bestAltRef.current;var bConf=-1;
       for(var ri=0;ri<ev.results.length;ri++){
-        for(var ai=0;ai<ev.results[ri].length;ai++){
-          var alt=normalizeDigitTranscript(ev.results[ri][ai].transcript,speechLang);
-          if(!alt)continue;
-          var tmp=analyzePronunciation(curAtTap.targetWord,alt,speechLang);
-          var sc=tmp.overall+(ev.results[ri][ai].confidence||0)*3;
-          if(sc>bScore){bScore=sc;bAlt=alt;}
-        }
+        var res=ev.results[ri];
+        if(!res||!res.length)continue;
+        var top=res[0];
+        var alt=normalizeDigitTranscript(top.transcript||"",speechLang);
+        if(!alt)continue;
+        var conf=(typeof top.confidence==="number")?top.confidence:0.5;
+        if(conf>bConf){bConf=conf;bAlt=alt;}
       }
       if(bAlt)bestAltRef.current=bAlt;
     };
@@ -1608,6 +1608,7 @@ function Game(p){
     l3WaitContRef.current=false;
     setL3WaitContinue(false);
     setL3Fb(null);
+    l3FailCountRef.current=0;
     if(!newRes)return;
     setL3Res(newRes);
     var nextQi=newRes.length;
@@ -1679,37 +1680,77 @@ function Game(p){
     l3FailCountRef.current=0;
     setL3Qi(nextQi);
   }
+  function judgePronunciation(targetWord,fixedHeard){
+    var heardTrim=(fixedHeard||"").trim();
+    if(!heardTrim.length)return false;
+    var tn=phNorm(targetWord),hn=phNorm(fixedHeard);
+    var sn=sttNorm(targetWord),sh=sttNorm(fixedHeard);
+    if(sn.length>0 && sn===sh)return true;
+    if(tn.length>0 && tn===hn)return true;
+    var tk=metaphone(tn),hk=metaphone(hn);
+    if(tk.length>0 && hk.length>0){
+      var pdiv=Math.max(tk.length,hk.length,1);
+      var ppct=1-(levenshtein(tk,hk)/pdiv);
+      if(ppct>=0.7){
+        var cdiv=Math.max(tn.length,hn.length,1);
+        var cpct=1-(levenshtein(tn,hn)/cdiv);
+        if(cpct>=0.5)return true;
+      }
+    }
+    return false;
+  }
   function processL3(heard,cur){
     if(screenR.current!=="l3play"&&screenR.current!=="asL3play")return;
     var wallL3=screenR.current==="l3play";
+    var asL3=screenR.current==="asL3play";
     if(heard==="__SKIP__"){
-      sOk();
       var analysis0=analyzePronunciation(cur.targetWord,"",speechLang);
       var diff0=pronDiff(cur.targetWord,"");
       l3FailCountRef.current=0;
-      if(screenR.current==="asL3play"){
-        handleCorrectAnswerAssessment(cur.targetId, cur.promptWord, cur.targetWord, asDemo?demoAsProg:asProg, !!asDemo);
-      } else if(!wallL3){
-        handleCorrectAnswer(cur.targetId,cur.targetWord,wordProg);
-      }
-      setL3Fb({heard:"",correct:true,diff:diff0,analysis:analysis0,skipped:true});
-      var newRes0=l3res.concat([{expected:cur.targetWord,heard:"",diff:diff0,correct:true,analysis:analysis0,promptWord:cur.promptWord}]);
+      sWrong();
+      setL3Fb({heard:"",correct:false,diff:diff0,analysis:analysis0,skipped:true});
+      var newRes0=l3res.concat([{expected:cur.targetWord,heard:"",diff:diff0,correct:false,analysis:analysis0,promptWord:cur.promptWord,skipped:true}]);
       queueL3WordComplete(newRes0);
       return;
     }
     var fixedHeard=normalizeDigitTranscript(heard||"",speechLang);
     var analysis=analyzePronunciation(cur.targetWord,fixedHeard,speechLang);
     var diff=pronDiff(cur.targetWord,fixedHeard);
-    sOk();
-    if(screenR.current==="asL3play"){
-      handleCorrectAnswerAssessment(cur.targetId, cur.promptWord, cur.targetWord, asDemo?demoAsProg:asProg, !!asDemo);
-    } else if(!wallL3){
-      handleCorrectAnswer(cur.targetId,cur.targetWord,wordProg);
+    var pass=judgePronunciation(cur.targetWord,fixedHeard);
+    if(pass){
+      sOk();
+      if(asL3){
+        handleCorrectAnswerAssessment(cur.targetId, cur.promptWord, cur.targetWord, asDemo?demoAsProg:asProg, !!asDemo);
+      } else if(!wallL3){
+        handleCorrectAnswer(cur.targetId,cur.targetWord,wordProg);
+      }
+      l3FailCountRef.current=0;
+      setL3Fb({heard:fixedHeard,correct:true,diff:diff,analysis:analysis});
+      var newResOk=l3res.concat([{expected:cur.targetWord,heard:fixedHeard,diff:diff,correct:true,analysis:analysis,promptWord:cur.promptWord}]);
+      queueL3WordComplete(newResOk);
+      return;
     }
-    l3FailCountRef.current=0;
-    setL3Fb({heard:fixedHeard,correct:true,diff:diff,analysis:analysis});
-    var newResOk=l3res.concat([{expected:cur.targetWord,heard:fixedHeard,diff:diff,correct:true,analysis:analysis,promptWord:cur.promptWord}]);
-    queueL3WordComplete(newResOk);
+    var fails=(l3FailCountRef.current||0)+1;
+    l3FailCountRef.current=fails;
+    if(wallL3 && fails>=3){
+      sOk();
+      l3FailCountRef.current=0;
+      if(!asL3 && !wallL3){
+        handleCorrectAnswer(cur.targetId,cur.targetWord,wordProg);
+      }
+      setL3Fb({heard:fixedHeard,correct:false,diff:diff,analysis:analysis,autoPass:true});
+      var newResAuto=l3res.concat([{expected:cur.targetWord,heard:fixedHeard,diff:diff,correct:false,analysis:analysis,promptWord:cur.promptWord,autoPass:true}]);
+      queueL3WordComplete(newResAuto);
+      return;
+    }
+    sWrong();
+    if(wallL3){
+      setL3Fb({heard:fixedHeard,correct:false,diff:diff,analysis:analysis,retry:true,attempts:fails});
+      return;
+    }
+    setL3Fb({heard:fixedHeard,correct:false,diff:diff,analysis:analysis});
+    var newResFail=l3res.concat([{expected:cur.targetWord,heard:fixedHeard,diff:diff,correct:false,analysis:analysis,promptWord:cur.promptWord}]);
+    queueL3WordComplete(newResFail);
   }
   function skipL3(){
     if(!sessW.length)return;
@@ -2157,8 +2198,7 @@ function Game(p){
             </div>
             {l3fb?(
               <div style={{width:"100%",border:"1px solid #eee",borderRadius:"14px",padding:"12px 14px",background:"#fff"}}>
-                <div style={{fontFamily:QF,fontSize:"11px",letterSpacing:".08em",textTransform:"uppercase",color:"#16a34a"}}>{lang==="EN"?"Recorded":"Registrado"}</div>
-                {l3WaitContinue?(<RoundBtn onClick={applyL3WordComplete} filled style={{marginTop:"12px",width:"100%",fontSize:"14px",padding:"12px 18px",background:"#0d9488",borderColor:"#0d9488"}}>{g.l3continueNext}</RoundBtn>):null}
+                <div style={{fontFamily:QF,fontSize:"11px",letterSpacing:".08em",textTransform:"uppercase",color:l3fb.correct?"#16a34a":"#dc2626"}}>{l3fb.correct?(lang==="EN"?"✓ Correct":"✓ Correcto"):(lang==="EN"?"✗ Incorrect":"✗ Incorrecto")}</div>
                 <div style={{fontFamily:QF,fontSize:"12px",color:"#555",marginTop:"6px"}}>{lang==="EN"?"Heard: ":"Escuchó: "}<b>{l3fb.heard||"—"}</b></div>
                 <div style={{fontFamily:QF,fontSize:"12px",color:"#555",marginTop:"4px"}}>{lang==="EN"?"Target: ":"Meta: "}<b>{cur3.targetWord}</b></div>
               </div>
@@ -2694,16 +2734,24 @@ function Game(p){
               </div>
             ):(
               <div style={{width:"100%",display:"flex",flexDirection:"column",gap:"8px"}}>
-                <div className="ph-verdict" style={{background:"#000",border:"none",color:"#fff"}}>
-                  {"✓ "+g.l2ok}
+                <div className="ph-verdict" style={{background:l3fb.autoPass?"#d97706":(l3fb.correct?"#000":"#dc2626"),border:"none",color:"#fff"}}>
+                  {l3fb.autoPass?(lang==="EN"?"→ MOVING ON":"→ AVANZANDO"):(l3fb.correct?("✓ "+g.l2ok):("✗ "+(lang==="EN"?"TRY AGAIN":"INTÉNTALO DE NUEVO")))}
                 </div>
                 <div style={{padding:"8px 14px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee"}}>
                   <span style={{fontFamily:QF,fontSize:"11px",color:"#aaa",textTransform:"uppercase",letterSpacing:".08em"}}>{g.l3heard+" "}</span><span style={{fontFamily:QF,fontSize:"14px",color:"#555",fontStyle:"italic"}}>"{l3fb.heard||"—"}"</span>
                 </div>
-                {l3WaitContinue?(<RoundBtn onClick={applyL3WordComplete} filled style={{width:"100%",fontSize:"14px",padding:"12px 18px"}}>{g.l3continueNext}</RoundBtn>):null}
                 <div style={{padding:"10px 16px",borderRadius:"12px",background:"#f9f9f9",border:"1px solid #eee",textAlign:"center"}}>
                   {l3fb.diff.map(function(d,i){return(<span key={i} className={d.ok?"char-ok":"char-bad"} style={{fontFamily:QF,fontSize:"22px",letterSpacing:".08em"}}>{d.c}</span>);})}
                 </div>
+                {!l3fb.correct&&!l3fb.autoPass&&!l3WaitContinue?(
+                  <>
+                    <RoundBtn onClick={toggleL3Recording} filled style={{width:"100%",fontSize:"13px",padding:"12px 18px",background:"#7c3aed",borderColor:"#7c3aed"}}>{g.l3relisten}</RoundBtn>
+                    <p style={{fontFamily:QF,fontSize:"11px",color:"#94a3b8",margin:0,textAlign:"center"}}>{g.l3RetryHint(Math.max(0,3-(l3fb.attempts||0)))}</p>
+                  </>
+                ):null}
+                {l3fb.autoPass?(
+                  <p style={{fontFamily:QF,fontSize:"11px",color:"#94a3b8",margin:0,textAlign:"center",fontStyle:"italic"}}>{lang==="EN"?"Moving on after 3 attempts.":"Avanzando tras 3 intentos."}</p>
+                ):null}
               </div>
             )}
           </div>
